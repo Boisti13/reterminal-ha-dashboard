@@ -35,6 +35,11 @@ Assistant packages that feed it. **Public repo** (since 2026-10-29).
 - **Public repo**: no secrets, passwords, tokens or keys in committed files;
   `secrets.example.yaml` holds dummies only. Screenshots use the demo's
   made-up values, never real calendar entries or data.
+- **The device and the screenshots may differ on purpose**: the device keeps
+  its real labels; the demo overrides them with substitutions (owner,
+  2026-10-29). So far `homelab_host2_title`: *Proxmox RPTU* on the device,
+  *Proxmox PVE2* in `screenshot-demo.yaml`. Never change the device's label
+  to match a screenshot.
 - The fonts keep their own licences (`THIRD_PARTY_NOTICES.md`); a new font
   or icon set gets its entry there.
 - OTA only while the device is awake: the owner presses a key first.
