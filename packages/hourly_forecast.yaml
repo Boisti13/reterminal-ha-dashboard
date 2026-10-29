@@ -1,0 +1,167 @@
+###############################################################################
+# reTerminal – Weather helpers (hourly forecast from attribute)
+###############################################################################
+
+template:
+  - sensor:
+      # Optional sanity check – you already have something like this
+      - name: "Reterminal Test Sensor"
+        unique_id: reterminal_test_sensor
+        state: "TEST_OK"
+
+      # --- Hour 0 ---
+      - name: "Reterminal Hourly Forecast Line 0"
+        unique_id: reterminal_hourly_forecast_line_0
+        state: >
+          {% set fc = state_attr('sensor.reterminal_weather_hourly', 'forecast') %}
+          {% if fc and fc | count > 0 %}
+            {% set e = fc[0] %}
+            {% set hour = e.datetime[11:13] %}
+            {{ hour }}h  {{ e.temperature | float | round(1) }}°C  {{ e.condition }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # --- Hour 1 ---
+      - name: "Reterminal Hourly Forecast Line 1"
+        unique_id: reterminal_hourly_forecast_line_1
+        state: >
+          {% set fc = state_attr('sensor.reterminal_weather_hourly', 'forecast') %}
+          {% if fc and fc | count > 1 %}
+            {% set e = fc[1] %}
+            {% set hour = e.datetime[11:13] %}
+            {{ hour }}h  {{ e.temperature | float | round(1) }}°C  {{ e.condition }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # --- Hour 2 ---
+      - name: "Reterminal Hourly Forecast Line 2"
+        unique_id: reterminal_hourly_forecast_line_2
+        state: >
+          {% set fc = state_attr('sensor.reterminal_weather_hourly', 'forecast') %}
+          {% if fc and fc | count > 2 %}
+            {% set e = fc[2] %}
+            {% set hour = e.datetime[11:13] %}
+            {{ hour }}h  {{ e.temperature | float | round(1) }}°C  {{ e.condition }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # --- Hour 3 ---
+      - name: "Reterminal Hourly Forecast Line 3"
+        unique_id: reterminal_hourly_forecast_line_3
+        state: >
+          {% set fc = state_attr('sensor.reterminal_weather_hourly', 'forecast') %}
+          {% if fc and fc | count > 3 %}
+            {% set e = fc[3] %}
+            {% set hour = e.datetime[11:13] %}
+            {{ hour }}h  {{ e.temperature | float | round(1) }}°C  {{ e.condition }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # --- Hour 4 ---
+      - name: "Reterminal Hourly Forecast Line 4"
+        unique_id: reterminal_hourly_forecast_line_4
+        state: >
+          {% set fc = state_attr('sensor.reterminal_weather_hourly', 'forecast') %}
+          {% if fc and fc | count > 4 %}
+            {% set e = fc[4] %}
+            {% set hour = e.datetime[11:13] %}
+            {{ hour }}h  {{ e.temperature | float | round(1) }}°C  {{ e.condition }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # --- Hour 5 ---
+      - name: "Reterminal Hourly Forecast Line 5"
+        unique_id: reterminal_hourly_forecast_line_5
+        state: >
+          {% set fc = state_attr('sensor.reterminal_weather_hourly', 'forecast') %}
+          {% if fc and fc | count > 5 %}
+            {% set e = fc[5] %}
+            {% set hour = e.datetime[11:13] %}
+            {{ hour }}h  {{ e.temperature | float | round(1) }}°C  {{ e.condition }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # --- Hour 6 ---
+      - name: "Reterminal Hourly Forecast Line 6"
+        unique_id: reterminal_hourly_forecast_line_6
+        state: >
+          {% set fc = state_attr('sensor.reterminal_weather_hourly', 'forecast') %}
+          {% if fc and fc | count > 6 %}
+            {% set e = fc[6] %}
+            {% set hour = e.datetime[11:13] %}
+            {{ hour }}h  {{ e.temperature | float | round(1) }}°C  {{ e.condition }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # --- Hour 7 ---
+      - name: "Reterminal Hourly Forecast Line 7"
+        unique_id: reterminal_hourly_forecast_line_7
+        state: >
+          {% set fc = state_attr('sensor.reterminal_weather_hourly', 'forecast') %}
+          {% if fc and fc | count > 7 %}
+            {% set e = fc[7] %}
+            {% set hour = e.datetime[11:13] %}
+            {{ hour }}h  {{ e.temperature | float | round(1) }}°C  {{ e.condition }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # --- Hour 8 ---
+      - name: "Reterminal Hourly Forecast Line 8"
+        unique_id: reterminal_hourly_forecast_line_8
+        state: >
+          {% set fc = state_attr('sensor.reterminal_weather_hourly', 'forecast') %}
+          {% if fc and fc | count > 8 %}
+            {% set e = fc[8] %}
+            {% set hour = e.datetime[11:13] %}
+            {{ hour }}h  {{ e.temperature | float | round(1) }}°C  {{ e.condition }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # --- Hour 9 ---
+      - name: "Reterminal Hourly Forecast Line 9"
+        unique_id: reterminal_hourly_forecast_line_9
+        state: >
+          {% set fc = state_attr('sensor.reterminal_weather_hourly', 'forecast') %}
+          {% if fc and fc | count > 9 %}
+            {% set e = fc[9] %}
+            {% set hour = e.datetime[11:13] %}
+            {{ hour }}h  {{ e.temperature | float | round(1) }}°C  {{ e.condition }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # --- Hour 10 ---
+      - name: "Reterminal Hourly Forecast Line 10"
+        unique_id: reterminal_hourly_forecast_line_10
+        state: >
+          {% set fc = state_attr('sensor.reterminal_weather_hourly', 'forecast') %}
+          {% if fc and fc | count > 10 %}
+            {% set e = fc[10] %}
+            {% set hour = e.datetime[11:13] %}
+            {{ hour }}h  {{ e.temperature | float | round(1) }}°C  {{ e.condition }}
+          {% else %}
+            unavailable
+          {% endif %}
+
+      # --- Hour 11 ---
+      - name: "Reterminal Hourly Forecast Line 11"
+        unique_id: reterminal_hourly_forecast_line_11
+        state: >
+          {% set fc = state_attr('sensor.reterminal_weather_hourly', 'forecast') %}
+          {% if fc and fc | count > 11 %}
+            {% set e = fc[11] %}
+            {% set hour = e.datetime[11:13] %}
+            {{ hour }}h  {{ e.temperature | float | round(1) }}°C  {{ e.condition }}
+          {% else %}
+            unavailable
+          {% endif %}
+          

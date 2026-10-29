@@ -1,0 +1,145 @@
+# ---------------------------------------------------
+# TEXT SENSORS
+# ---------------------------------------------------
+
+  # WEATHER CONDITION STATE
+  - platform: homeassistant
+    id: ha_weather_condition
+    entity_id: weather.forecast_home
+
+  # CALENDAR messages (current/next event message only)
+
+  - platform: homeassistant
+    id: cal_next_appt
+    entity_id: sensor.reterminal_next_appointment
+  
+  - platform: homeassistant
+    id: cal_next_7d
+    entity_id: sensor.reterminal_next_7d_calendar
+
+  # All-day events, one per line: "Ddd|DD.MM|DD.MM|Title" (end empty = single day), "none" = no events
+  - platform: homeassistant
+    id: cal_allday
+    entity_id: sensor.reterminal_all_day_calendar
+
+  # ---------------------------------------------------
+  # WEATHER FORECAST TEXT SENSORS (from Home Assistant)
+  # ---------------------------------------------------
+
+  # 4-day forecast conditions (for icons)
+  - platform: homeassistant
+    id: ha_fc_day2_cond
+    entity_id: sensor.reterminal_forecast_day_2_condition
+
+  - platform: homeassistant
+    id: ha_fc_day3_cond
+    entity_id: sensor.reterminal_forecast_day_3_condition
+
+  - platform: homeassistant
+    id: ha_fc_day4_cond
+    entity_id: sensor.reterminal_forecast_day_4_condition
+
+  - platform: homeassistant
+    id: ha_fc_day5_cond
+    entity_id: sensor.reterminal_forecast_day_5_condition
+
+  # 4-day forecast labels
+  - platform: homeassistant
+    id: ha_fc_day2_label
+    entity_id: sensor.reterminal_forecast_day_2_label
+
+  - platform: homeassistant
+    id: ha_fc_day3_label
+    entity_id: sensor.reterminal_forecast_day_3_label
+
+  - platform: homeassistant
+    id: ha_fc_day4_label
+    entity_id: sensor.reterminal_forecast_day_4_label
+
+  - platform: homeassistant
+    id: ha_fc_day5_label
+    entity_id: sensor.reterminal_forecast_day_5_label
+
+  # 4-day forecast temps
+  - platform: homeassistant
+    id: ha_fc_day2_temps
+    entity_id: sensor.reterminal_forecast_day_2_temps
+
+  - platform: homeassistant
+    id: ha_fc_day3_temps
+    entity_id: sensor.reterminal_forecast_day_3_temps
+
+  - platform: homeassistant
+    id: ha_fc_day4_temps
+    entity_id: sensor.reterminal_forecast_day_4_temps
+
+  - platform: homeassistant
+    id: ha_fc_day5_temps
+    entity_id: sensor.reterminal_forecast_day_5_temps
+
+# ---------------------------------------------------
+# WEATHER FORECAST TEXT SENSORS hourly (from Home Assistant)
+# ---------------------------------------------------
+
+  # --- Hourly forecast: +2h ---
+  - platform: homeassistant
+    id: ha_fc_line_2
+    entity_id: sensor.reterminal_hourly_forecast_line_2
+
+  # --- Hourly forecast: +4h ---
+  - platform: homeassistant
+    id: ha_fc_line_4
+    entity_id: sensor.reterminal_hourly_forecast_line_4
+
+  # --- Hourly forecast: +6h ---
+  - platform: homeassistant
+    id: ha_fc_line_6
+    entity_id: sensor.reterminal_hourly_forecast_line_6
+
+  # --- Hourly forecast: +8h ---
+  - platform: homeassistant
+    id: ha_fc_line_8
+    entity_id: sensor.reterminal_hourly_forecast_line_8
+
+  # --- Hourly forecast: +10h ---
+  - platform: homeassistant
+    id: ha_fc_line_10
+    entity_id: sensor.reterminal_hourly_forecast_line_10
+
+# ---------------------------------------------------
+# Pressure Sensor Trend
+# ---------------------------------------------------
+
+  - platform: homeassistant
+    id: indoor_pressure_trend
+    entity_id: sensor.indoor_pressure_trend
+
+# ---------------------------------------------------
+# HA Alarms (combined list from packages/reterminal_alarms.yaml)
+# ---------------------------------------------------
+
+  - platform: homeassistant
+    id: ha_alarms
+    entity_id: sensor.reterminal_alarms
+
+# ---------------------------------------------------
+# Sunrise / sunset (sun.sun attributes, UTC ISO strings)
+# ---------------------------------------------------
+
+  - platform: homeassistant
+    id: sun_next_rising
+    entity_id: sun.sun
+    attribute: next_rising
+
+  - platform: homeassistant
+    id: sun_next_setting
+    entity_id: sun.sun
+    attribute: next_setting
+
+# ---------------------------------------------------
+# Car lock (locked / unlocked)
+# ---------------------------------------------------
+
+  - platform: homeassistant
+    id: car_lock_state
+    entity_id: lock.i30_door_lock

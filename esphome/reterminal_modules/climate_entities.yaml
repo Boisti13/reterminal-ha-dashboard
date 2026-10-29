@@ -1,0 +1,43 @@
+# ---------------------------------------------------
+# CLIMATE PAGE extras (heating + windows per room)
+# Merged in via packages: in reterminal.yaml
+# Room temperatures/humidity live in sensors.yaml.
+# ---------------------------------------------------
+
+text_sensor:
+  # Radiator state: hvac_action attribute ("heating", "idle", "off", ...)
+  - platform: homeassistant
+    id: heat_living
+    entity_id: climate.living_room_radiator
+    attribute: hvac_action
+  - platform: homeassistant
+    id: heat_bedroom
+    entity_id: climate.bedroom_radiator
+    attribute: hvac_action
+  - platform: homeassistant
+    id: heat_arthur
+    entity_id: climate.arthur_radiator
+    attribute: hvac_action
+  - platform: homeassistant
+    id: heat_kitchen
+    entity_id: climate.kitchen_radiator
+    attribute: hvac_action
+  - platform: homeassistant
+    id: heat_bathroom
+    entity_id: climate.bathroom_radiator
+    attribute: hvac_action
+
+binary_sensor:
+  # Window / door contacts (on = open)
+  - platform: homeassistant
+    id: win_living
+    entity_id: binary_sensor.balcony_door_contact
+  - platform: homeassistant
+    id: win_bedroom
+    entity_id: binary_sensor.bedroom_window_contact
+  - platform: homeassistant
+    id: win_arthur
+    entity_id: binary_sensor.arthur_window_contact
+  - platform: homeassistant
+    id: win_kitchen
+    entity_id: binary_sensor.kitchen_window_contact

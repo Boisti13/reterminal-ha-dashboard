@@ -1,0 +1,10 @@
+# ESPHome build output
+.esphome/
+esphome/.esphome/
+
+# Secrets — never commit
+secrets.yaml
+esphome/secrets.yaml
+
+# Written by ESPHome on the first local build (the rules above cover it)
+esphome/.gitignore

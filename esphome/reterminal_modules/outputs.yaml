@@ -1,0 +1,6 @@
+# ---------------------------------------------------
+# GPIO OUTPUTS (battery enable)
+# ---------------------------------------------------
+- platform: gpio
+  pin: GPIO21
+  id: bsp_battery_enable

@@ -1,0 +1,133 @@
+###############################################################################
+# reTerminal – combined alarm list for the e-paper alarm bar
+# State: active alarms joined with "|", or "OK" when nothing is wrong.
+# Order = priority (most important first). Max 255 chars.
+#
+# Adjustable on the Settings dashboard (since 2026-10-15):
+#   input_number.reterminal_co2_alarm_above        CO2 alarm (was 1200 ppm)
+#   input_number.reterminal_battery_low_threshold  battery alarm (was 10 %)
+###############################################################################
+
+# No initial values: HA keeps the last setting across restarts.
+input_number:
+  reterminal_co2_alarm_above:
+    name: reTerminal – CO2 alarm above
+    icon: mdi:molecule-co2
+    min: 600
+    max: 3000
+    step: 50
+    unit_of_measurement: ppm
+    mode: box
+  reterminal_battery_low_threshold:
+    name: reTerminal – battery alarm below
+    icon: mdi:battery-10
+    min: 5
+    max: 50
+    step: 1
+    unit_of_measurement: "%"
+    mode: box
+
+template:
+  - sensor:
+      - name: "reTerminal Alarms"
+        unique_id: reterminal_alarms
+        icon: mdi:alert-circle-outline
+        state: >
+          {% set ns = namespace(items=[], tmp=[]) %}
+
+          {# 1) Water leak #}
+          {% set ns.tmp = [] %}
+          {% for e, n in [('binary_sensor.leak_dishwasher_water_leak', 'Dishwasher'),
+                          ('binary_sensor.leak_washing_water_leak', 'Washing machine'),
+                          ('binary_sensor.leak_sink_water_leak', 'Sink')] %}
+            {% if is_state(e, 'on') %}{% set ns.tmp = ns.tmp + [n] %}{% endif %}
+          {% endfor %}
+          {% if ns.tmp %}{% set ns.items = ns.items + ['Water leak: ' ~ ns.tmp | join(', ')] %}{% endif %}
+
+          {# 1b) Official DWD weather warnings (Kaiserslautern-Stadt) #}
+          {% for sensor, prefix in [('sensor.kaiserslautern_stadt_current_warning_level', 'Weather'),
+                                    ('sensor.kaiserslautern_stadt_advance_warning_level', 'Weather outlook')] %}
+            {% set count = state_attr(sensor, 'warning_count') | int(0) %}
+            {% if count > 0 %}
+              {% set ns.tmp = [] %}
+              {% for i in range(1, count + 1) %}
+                {% set n = (state_attr(sensor, 'warning_' ~ i ~ '_name') or '') | lower | title
+                           | replace('Vorabinformation ', '') | replace('Unwetter Vor ', '') %}
+                {% if n and n not in ns.tmp %}{% set ns.tmp = ns.tmp + [n] %}{% endif %}
+              {% endfor %}
+              {% set lvl = states(sensor) | int(0) %}
+              {% set end = state_attr(sensor, 'warning_1_end') %}
+              {% set until = (' until ' ~ (end | as_datetime | as_local).strftime('%H:%M'))
+                             if count == 1 and end is not none and prefix == 'Weather' else '' %}
+              {% set ns.items = ns.items + [prefix ~ ': ' ~ ns.tmp | join(', ') ~ ' (level ' ~ lvl ~ ')' ~ until] %}
+            {% endif %}
+          {% endfor %}
+
+          {# 2) Internet down (confirmed outage >= 60 s, from fritzbox package) #}
+          {% if is_state('input_boolean.internet_outage_active', 'on') %}
+            {% set ns.items = ns.items + ['Internet down'] %}
+          {% endif %}
+
+          {# 3) Homelab offline #}
+          {% set ns.tmp = [] %}
+          {% for e, n in [('binary_sensor.node_pve_status', 'Proxmox Home'),
+                          ('binary_sensor.node_pve_status_2', 'Proxmox RPTU'),
+                          ('binary_sensor.pi_hole_status_2', 'Pi-hole')] %}
+            {% if not is_state(e, 'on') %}{% set ns.tmp = ns.tmp + [n] %}{% endif %}
+          {% endfor %}
+          {% if ns.tmp %}{% set ns.items = ns.items + [ns.tmp | join(', ') ~ ' offline'] %}{% endif %}
+
+          {# 4) CO2 high (bedroom) #}
+          {% set co2 = states('sensor.indoor_carbon_dioxide') | float(0) %}
+          {% if co2 > states('input_number.reterminal_co2_alarm_above') | float(1200) %}
+            {% set ns.items = ns.items + ['CO2 ' ~ co2 | round(0) | int ~ ' ppm'] %}
+          {% endif %}
+
+          {# 5) Windows / doors open #}
+          {% set ns.tmp = [] %}
+          {% for e, n in [('binary_sensor.kitchen_window_contact', 'Kitchen window'),
+                          ('binary_sensor.bedroom_window_contact', 'Bedroom window'),
+                          ('binary_sensor.arthur_window_contact', 'Arthur window'),
+                          ('binary_sensor.balcony_door_contact', 'Balcony door')] %}
+            {% if is_state(e, 'on') %}{% set ns.tmp = ns.tmp + [n] %}{% endif %}
+          {% endfor %}
+          {% if ns.tmp | count > 2 %}
+            {% set ns.items = ns.items + [ns.tmp | count ~ ' windows/doors open'] %}
+          {% elif ns.tmp %}
+            {% set ns.items = ns.items + [ns.tmp | join(', ') ~ ' open'] %}
+          {% endif %}
+
+          {# 6) Car not locked / something open #}
+          {% set ns.tmp = [] %}
+          {% for e, n in [('binary_sensor.i30_front_left_door', 'door'),
+                          ('binary_sensor.i30_front_right_door', 'door'),
+                          ('binary_sensor.i30_back_left_door', 'door'),
+                          ('binary_sensor.i30_back_right_door', 'door'),
+                          ('binary_sensor.i30_trunk', 'trunk'),
+                          ('binary_sensor.i30_hood', 'hood'),
+                          ('binary_sensor.i30_front_left_window', 'window'),
+                          ('binary_sensor.i30_front_right_window', 'window'),
+                          ('binary_sensor.i30_back_left_window', 'window'),
+                          ('binary_sensor.i30_back_right_window', 'window')] %}
+            {% if is_state(e, 'on') and n not in ns.tmp %}{% set ns.tmp = ns.tmp + [n] %}{% endif %}
+          {% endfor %}
+          {% if ns.tmp %}
+            {% set ns.items = ns.items + ['Car ' ~ ns.tmp | join('/') ~ ' open'] %}
+          {% elif states('lock.i30_door_lock') == 'unlocked' %}
+            {% set ns.items = ns.items + ['Car unlocked'] %}
+          {% endif %}
+
+          {# 7) Low batteries (below the reTerminal threshold), excluding phones, vacuums, car, power station, ESP displays #}
+          {% set ns.tmp = [] %}
+          {% for s in states.sensor
+               | selectattr('attributes.device_class', 'defined')
+               | selectattr('attributes.device_class', 'eq', 'battery')
+               | rejectattr('entity_id', 'search', 'i30_|roborock|bkg_s23|sm_x710|papers3|esp_heat|m5paper|river_2|dash_xs')
+               if is_number(s.state) and s.state | float < states('input_number.reterminal_battery_low_threshold') | float(10) %}
+            {% set ns.tmp = ns.tmp + [s.attributes.friendly_name | replace(' Battery', '') | replace('_', ' ')] %}
+          {% endfor %}
+          {% if ns.tmp %}
+            {% set ns.items = ns.items + [('Battery low: ' if ns.tmp | count == 1 else 'Batteries low: ') ~ ns.tmp | sort | join(', ')] %}
+          {% endif %}
+
+          {{ (ns.items | join('|') if ns.items else 'OK')[:255] }}

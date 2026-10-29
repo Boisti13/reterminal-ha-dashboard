@@ -1,0 +1,217 @@
+globals:
+  # 0 = Overview, 1 = Climate, 2 = Homelab
+  - id: selected_page
+    type: int
+    restore_value: no
+    initial_value: '0'
+  # true once HA data is in; key presses before that only pick the page
+  - id: ui_ready
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+script:
+  # Draw the selected page. Climate/Homelab stay for 30s, then the overview is
+  # drawn again before sleeping. Restarted by every key press while awake,
+  # which resets the 30s.
+  - id: show_selected_page
+    mode: restart
+    then:
+      - lambda: |-
+          if (id(selected_page) == 1)      id(epaper_display).show_page(id(page_climate));
+          else if (id(selected_page) == 2) id(epaper_display).show_page(id(page_homelab));
+          else                             id(epaper_display).show_page(id(page_overview));
+      # update() blocks until the panel reports idle, so only a short settle is needed
+      - component.update: epaper_display
+      - delay: 500ms
+      - if:
+          condition:
+            lambda: 'return id(selected_page) != 0;'
+          then:
+            - delay: 30s
+            - lambda: 'id(selected_page) = 0;'
+            - display.page.show: page_overview
+            - component.update: epaper_display
+            - delay: 500ms
+      - script.execute: go_to_sleep
+
+  # Sleep 2h (6h when the battery is below 15%). If the next wake would fall
+  # into the night window (00:00-06:00), sleep until 06:00 instead.
+  # Button wakes still work at any time.
+  - id: go_to_sleep
+    mode: single
+    then:
+      - deep_sleep.enter:
+          id: deep_sleep_ctrl
+          sleep_duration: !lambda |-
+            const float low_battery_pct = 15.0f;                     // keep in sync with ui_header.h
+            const bool  low_battery = id(battery_level).has_state() &&
+                                      !std::isnan(id(battery_level).state) &&
+                                      id(battery_level).state < low_battery_pct;
+            const int interval_min = low_battery ? 6 * 60 : 2 * 60;  // 2h normally (= deep_sleep.sleep_duration)
+            const uint32_t normal_ms = (uint32_t) interval_min * 60000UL;
+            const int night_end = 6 * 60;                            // 06:00 in minutes
+            if (low_battery) ESP_LOGI("sleep", "Low battery (%.0f%%): %d min interval", id(battery_level).state, interval_min);
+
+            auto now = id(ha_time).now();
+            if (!now.is_valid()) return normal_ms;
+
+            const int m = now.hour * 60 + now.minute;
+            const int next_wake = (m + interval_min) % 1440;
+            if (next_wake >= night_end) return normal_ms;
+
+            int until = (night_end - m + 1440) % 1440;               // minutes until 06:00
+            if (until < 1) until = 1;
+            ESP_LOGI("sleep", "Night window: sleeping %d min until 06:00", until);
+            return (uint32_t) until * 60000UL - (uint32_t) now.second * 1000UL;
+
+esphome:
+  name: reterminal
+  friendly_name: reTerminal
+  project:
+    name: boisti13.reterminal-ha-dashboard
+    version: "0.2.0"
+  on_boot:
+    priority: 600
+    then:
+      - delay: 100ms
+      - output.turn_on: bsp_battery_enable
+      - lambda: |-
+          pagewake_setup_pins();
+          id(selected_page) = pagewake_select_page_default_0();
+
+      # Wait for HA connection, time sync and key data (max 30s)
+      - wait_until:
+          condition:
+            and:
+              - api.connected:
+              - lambda: |-
+                  return id(ha_time).now().is_valid() &&
+                         id(ha_weather_condition).has_state() &&
+                         id(cal_next_appt).has_state() &&
+                         id(temp_living).has_state();
+          timeout: 30s
+      # Then wait until every value coming from HA has arrived. HA sends them right
+      # after connecting, so this usually takes 0.1-0.3s. Capped at 1.5s in case an
+      # HA entity is missing/unavailable (an unavailable binary_sensor never gets a state).
+      # Only internal (unnamed) entities are checked = the HA-fed ones; local sensors
+      # (battery ADC, SHT4x) update on their own schedule.
+      - wait_until:
+          condition:
+            lambda: |-
+              for (auto *e : App.get_sensors())        if (e->is_internal() && !e->has_state()) return false;
+              for (auto *e : App.get_text_sensors())   if (e->is_internal() && !e->has_state()) return false;
+              for (auto *e : App.get_binary_sensors()) if (e->is_internal() && !e->has_state()) return false;
+              return true;
+          timeout: 1500ms
+      - lambda: |-
+          int missing = 0;
+          for (auto *e : App.get_sensors())        if (e->is_internal() && !e->has_state()) missing++;
+          for (auto *e : App.get_text_sensors())   if (e->is_internal() && !e->has_state()) missing++;
+          for (auto *e : App.get_binary_sensors()) if (e->is_internal() && !e->has_state()) missing++;
+          if (missing > 0) ESP_LOGW("boot", "%d HA value(s) did not arrive (entity missing/unavailable in HA?)", missing);
+          else             ESP_LOGI("boot", "All HA values received");
+
+      - globals.set:
+          id: ui_ready
+          value: 'true'
+      - script.execute: show_selected_page
+
+  includes:
+    - reterminal_modules/ui_weather.h
+    - reterminal_modules/page_wake.h
+    - reterminal_modules/ui_header.h
+
+esp32:
+  board: esp32-s3-devkitc-1
+  # CPU already runs at the S3 maximum (240 MHz) by default
+  framework:
+    type: arduino
+    sdkconfig_options:
+      # Skip the firmware image check when waking from deep sleep (~0.2-0.3s per wake).
+      # A normal power-on / reset still validates the image.
+      CONFIG_BOOTLOADER_SKIP_VALIDATE_IN_DEEP_SLEEP: y
+
+logger:
+  level: INFO
+
+api:
+  encryption:
+    key: !secret reterminal_key
+
+ota:
+  - platform: esphome
+    password: !secret reterminal_ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  # Skip scan + DHCP for faster wake (IP is also reserved in the router)
+  fast_connect: true
+  manual_ip:
+    static_ip: 192.168.178.77
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+    dns1: 192.168.178.1
+
+  ap:
+    ssid: "Reterminal Fallback Hotspot"
+    password: !secret ap_password
+
+captive_portal:
+
+time:
+  - platform: homeassistant
+    id: ha_time
+
+##########################
+#  Deep Sleep
+##########################
+deep_sleep:
+  id: deep_sleep_ctrl
+  # Safety net only; show_selected_page enters sleep itself. Key presses while awake
+  # call deep_sleep.prevent, so browsing pages is not cut off by this timer.
+  run_duration: 90s
+  sleep_duration: 2h
+
+  esp32_ext1_wakeup:
+    pins:
+      - number: GPIO5
+        mode: INPUT_PULLUP
+        allow_other_uses: true
+      - number: GPIO4
+        mode: INPUT_PULLUP
+        allow_other_uses: true
+      - number: GPIO3
+        mode: INPUT_PULLUP
+        allow_other_uses: true
+    mode: ANY_LOW
+
+##########################
+#  Modular includes
+##########################
+
+# Hardware buses & outputs
+spi: !include reterminal_modules/hardware_spi.yaml
+i2c: !include reterminal_modules/hardware_i2c.yaml
+output: !include reterminal_modules/outputs.yaml
+
+# Fonts for all pages
+font: !include reterminal_modules/fonts.yaml
+
+# E-Paper display + all pages
+display: !include reterminal_modules/display.yaml
+
+# Buttons
+binary_sensor: !include reterminal_modules/binary_sensors.yaml
+
+# Numeric sensors (local + HA)
+sensor: !include reterminal_modules/sensors.yaml
+
+# Text sensors (weather, trends, calendar, alerts)
+text_sensor: !include reterminal_modules/text_sensors.yaml
+
+# Page-specific HA entities (Homelab: Proxmox + Pi-hole; Climate: heating + windows)
+packages:
+  homelab: !include reterminal_modules/homelab_entities.yaml
+  climate: !include reterminal_modules/climate_entities.yaml

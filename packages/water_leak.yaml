@@ -1,0 +1,159 @@
+###############################################################################
+# Water Leak – Dishwasher, Washing Machine, Sink
+###############################################################################
+
+homeassistant:
+  customize:
+    binary_sensor.combined_water_leak:
+      friendly_name: "Combined Water Leak Sensor"
+      icon: mdi:water-alert
+
+###############################################################################
+# Helpers for reTerminal alert mirroring
+# (IDs must be unique across ALL packages)
+###############################################################################
+input_text:
+  reterminal_water_alert_line:
+    name: reTerminal Water Alert Line
+    max: 255
+
+  reterminal_water_alert_level:
+    name: reTerminal Water Alert Level
+    max: 16
+
+###############################################################################
+# Template – Combined leak sensor
+###############################################################################
+template:
+  - binary_sensor:
+      - name: "Combined Water Leak"
+        unique_id: combined_water_leak
+        device_class: problem
+        state: >
+          {{ is_state('binary_sensor.leak_dishwasher_water_leak', 'on')
+             or is_state('binary_sensor.leak_washing_water_leak', 'on')
+             or is_state('binary_sensor.leak_sink_water_leak', 'on') }}
+        attributes:
+          active_sensors: >
+            {% set items = [] %}
+            {% if is_state('binary_sensor.leak_dishwasher_water_leak', 'on') %}
+              {% set items = items + ['Dishwasher'] %}
+            {% endif %}
+            {% if is_state('binary_sensor.leak_washing_water_leak', 'on') %}
+              {% set items = items + ['Washing Machine'] %}
+            {% endif %}
+            {% if is_state('binary_sensor.leak_sink_water_leak', 'on') %}
+              {% set items = items + ['Sink'] %}
+            {% endif %}
+            {{ items }}
+
+###############################################################################
+# Automations
+###############################################################################
+automation:
+  # ------------------------- Leak detected -------------------------
+  - id: water_leak_detected_alert
+    alias: "Water Leak – Detected"
+    mode: single
+
+    trigger:
+      - platform: state
+        entity_id:
+          - binary_sensor.leak_dishwasher_water_leak
+          - binary_sensor.leak_washing_water_leak
+          - binary_sensor.leak_sink_water_leak
+        from: "off"
+        to: "on"
+
+    variables:
+      leaking_devices: >-
+        {% set items = [] %}
+        {% if is_state('binary_sensor.leak_dishwasher_water_leak', 'on') %}
+          {% set items = items + ['Dishwasher'] %}
+        {% endif %}
+        {% if is_state('binary_sensor.leak_washing_water_leak', 'on') %}
+          {% set items = items + ['Washing Machine'] %}
+        {% endif %}
+        {% if is_state('binary_sensor.leak_sink_water_leak', 'on') %}
+          {% set items = items + ['Sink'] %}
+        {% endif %}
+        {{ items | join(', ') if items | length > 0 else 'Unknown device' }}
+
+    action:
+      - service: notify.mobile_app_bkg_s23
+        data:
+          title: "Water leak detected"
+          message: "Leak detected at: {{ leaking_devices }}. Please check immediately."
+
+      - service: notify.telegram
+        data:
+          message: |
+            💧 Water leak detected!
+            Leak at: {{ leaking_devices }}.
+            Please check immediately.
+
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.reterminal_water_alert_line
+        data:
+          value: |
+            Leak at: {{ leaking_devices }}.
+
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.reterminal_water_alert_level
+        data:
+          value: "alarm"
+
+  # ------------------------- All clear -------------------------
+  - id: water_leak_all_clear
+    alias: "Water Leak – All Clear"
+    mode: single
+
+    trigger:
+      - platform: state
+        entity_id:
+          - binary_sensor.leak_dishwasher_water_leak
+          - binary_sensor.leak_washing_water_leak
+          - binary_sensor.leak_sink_water_leak
+        to: "off"
+
+    condition:
+      - condition: state
+        entity_id: binary_sensor.leak_dishwasher_water_leak
+        state: "off"
+      - condition: state
+        entity_id: binary_sensor.leak_washing_water_leak
+        state: "off"
+      - condition: state
+        entity_id: binary_sensor.leak_sink_water_leak
+        state: "off"
+      - condition: state
+        entity_id: input_text.reterminal_water_alert_level
+        state: "alarm"
+
+    action:
+      - service: notify.mobile_app_bkg_s23
+        data:
+          title: "Water leak cleared"
+          message: "All sensors (dishwasher, washing machine, sink) report no more water."
+
+      - service: notify.telegram
+        data:
+          message: |
+            ✅ Water leak cleared.
+            All sensors (dishwasher, washing machine, sink) are dry again.
+
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.reterminal_water_alert_line
+        data:
+          value: |
+            Water leak cleared.
+            All sensors dry.
+
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.reterminal_water_alert_level
+        data:
+          value: "ok"

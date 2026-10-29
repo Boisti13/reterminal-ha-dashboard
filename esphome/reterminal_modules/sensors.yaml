@@ -1,0 +1,154 @@
+# ---------------------------------------------------
+# SENSORS
+# ---------------------------------------------------
+
+# Internal SHT4x temperature/humidity
+- platform: sht4x
+  id: sht4x_component
+  temperature:
+    name: "reTerminal Internal Temperature"
+    id: sht4x_temperature
+  humidity:
+    name: "reTerminal Internal Humidity"
+    id: sht4x_humidity
+  address: 0x44
+  update_interval: 60s
+
+# Battery voltage via ADC
+- platform: adc
+  pin: GPIO1
+  name: "Battery Voltage"
+  id: battery_voltage
+  update_interval: 600s
+  attenuation: 12db
+  filters:
+    - multiply: 2.0  # compensate divider
+
+# Battery level % derived from battery_voltage (no template sensor component)
+- platform: copy
+  source_id: battery_voltage
+  name: "Battery Level"
+  id: battery_level
+  device_class: battery
+  unit_of_measurement: "%"
+  accuracy_decimals: 0
+  filters:
+    - lambda: |-
+        if (isnan(x)) return NAN;
+
+        // LiPo discharge curve (voltage -> %), linear between points
+        static const float lut[][2] = {
+          {4.20f, 100}, {4.10f, 90}, {4.00f, 80}, {3.92f, 70},
+          {3.87f,  60}, {3.82f, 50}, {3.79f, 40}, {3.77f, 30},
+          {3.74f,  20}, {3.68f, 10}, {3.45f,  5}, {3.30f,  0},
+        };
+        const int n = sizeof(lut) / sizeof(lut[0]);
+
+        if (x >= lut[0][0]) return 100.0f;
+        if (x <= lut[n - 1][0]) return 0.0f;
+        for (int i = 1; i < n; i++) {
+          if (x >= lut[i][0]) {
+            const float v_hi = lut[i - 1][0], p_hi = lut[i - 1][1];
+            const float v_lo = lut[i][0],     p_lo = lut[i][1];
+            return p_lo + (x - v_lo) * (p_hi - p_lo) / (v_hi - v_lo);
+          }
+        }
+        return 0.0f;
+
+# WEATHER DETAILS (numeric)
+- platform: homeassistant
+  id: ha_today_temp_min
+  entity_id: sensor.reterminal_today_temp_min
+
+- platform: homeassistant
+  id: ha_today_temp_max
+  entity_id: sensor.reterminal_today_temp_max
+
+- platform: homeassistant
+  id: ha_outdoor_temp
+  entity_id: sensor.virtual_outdoor_temperature
+
+- platform: homeassistant
+  id: ha_outdoor_humidity
+  entity_id: sensor.virtual_outdoor_humidity
+
+# INDOOR TEMPERATURE SENSORS
+- platform: homeassistant
+  id: temp_living
+  entity_id: sensor.living_room_temperature
+
+- platform: homeassistant
+  id: temp_bedroom
+  entity_id: sensor.indoor_temperature
+
+- platform: homeassistant
+  id: temp_hallway
+  entity_id: sensor.hallway_temperature
+
+- platform: homeassistant
+  id: temp_kitchen
+  entity_id: sensor.kitchen_temperature
+
+- platform: homeassistant
+  id: temp_child
+  entity_id: sensor.childs_room_temperature
+
+- platform: homeassistant
+  id: temp_bathroom
+  entity_id: sensor.bathroom_temperature
+
+- platform: homeassistant
+  id: temp_cheddar
+  entity_id: sensor.cheddar_temp_temperature
+
+- platform: homeassistant
+  id: temp_coat_closet
+  entity_id: sensor.coat_closet_temperature
+
+# HUMIDITY SENSORS
+- platform: homeassistant
+  id: hum_living
+  entity_id: sensor.living_room_humidity
+
+- platform: homeassistant
+  id: hum_bedroom
+  entity_id: sensor.indoor_humidity
+
+- platform: homeassistant
+  id: hum_hallway
+  entity_id: sensor.hallway_humidity
+
+- platform: homeassistant
+  id: hum_kitchen
+  entity_id: sensor.kitchen_humidity
+
+- platform: homeassistant
+  id: hum_child
+  entity_id: sensor.childs_room_humidity
+
+- platform: homeassistant
+  id: hum_bathroom
+  entity_id: sensor.bathroom_humidity
+
+- platform: homeassistant
+  id: hum_cheddar
+  entity_id: sensor.cheddar_temp_humidity
+
+# BEDROOM CO2
+- platform: homeassistant
+  id: co2_bedroom
+  entity_id: sensor.indoor_carbon_dioxide
+
+# Numeric pressure sensor (hPa)
+- platform: homeassistant
+  id: indoor_atmospheric_pressure
+  entity_id: sensor.indoor_atmospheric_pressure
+
+# CAR (Hyundai i30)
+- platform: homeassistant
+  id: car_fuel_level
+  entity_id: sensor.i30_fuel_level
+
+- platform: homeassistant
+  id: car_range
+  entity_id: sensor.i30_fuel_driving_range

@@ -1,0 +1,213 @@
+# The three pages on a PC: same drawing code, an SDL window instead of the
+# e-paper, made-up values instead of Home Assistant. Used for the README
+# screenshots (scripts/screenshots.sh on Linux); handy for trying out layout
+# changes without waking and flashing the reTerminal. Not for the device —
+# don't copy it into Home Assistant's ESPHome folder.
+#
+#   esphome run esphome/screenshot-demo.yaml     # needs libsdl2-dev
+#
+# SDL draws COLOR_ON white on black; the screenshot script inverts the PNGs
+# so they look like the e-paper.
+
+esphome:
+  name: reterminal-demo
+  friendly_name: reTerminal Demo
+  includes:
+    - reterminal_modules/ui_weather.h
+    - reterminal_modules/ui_header.h
+  on_boot:
+    priority: -100
+    then:
+      - wait_until:
+          condition:
+            lambda: "return id(ha_time).now().is_valid();"
+          timeout: 5s
+      - lambda: |-
+          const time_t now = ::time(nullptr);
+          struct tm lt;
+          localtime_r(&now, &lt);
+          char buf[64];
+
+          // Calendar: dates relative to today, in the formats packages/calendar_reterminal.yaml writes
+          auto day = [&](int offset, const char *fmt) -> std::string {
+            time_t t = now + offset * 86400;
+            struct tm d;
+            localtime_r(&t, &d);
+            strftime(buf, sizeof(buf), fmt, &d);
+            return buf;
+          };
+          auto label = [&](int offset) -> std::string {
+            std::string s = offset == 0 ? "Today" : day(offset, "%a %d.%m");
+            s.resize(14, ' ');
+            return s;
+          };
+          id(cal_next_appt).publish_state(day(0, "%a %d.%m") + " 16:30  Dentist");
+          id(cal_next_7d).publish_state(
+            label(0) + "  18:00  Football training\n" +
+            label(1) + "  09:00  Car service\n" +
+            std::string(14, ' ') + "  19:30  Dinner with friends\n" +
+            label(3) + "  08:15  Team meeting\n" +
+            label(4) + "  10:00  Haircut\n" +
+            label(5) + "  17:00  Parents' evening\n" +
+            label(6) + "  20:00  Book club");
+          id(cal_allday).publish_state(
+            day(2, "%a") + "|" + day(2, "%d.%m") + "||Grandma's birthday\n" +
+            day(4, "%a") + "|" + day(4, "%d.%m") + "|" + day(6, "%d.%m") + "|Conference");
+
+          // Weather
+          id(ha_weather_condition).publish_state("partlycloudy");
+          id(ha_outdoor_temp).publish_state(12.4);
+          id(ha_outdoor_humidity).publish_state(71);
+          id(ha_today_temp_min).publish_state(6.8);
+          id(ha_today_temp_max).publish_state(14.1);
+          id(indoor_atmospheric_pressure).publish_state(1018.3);
+          id(indoor_pressure_trend).publish_state("rising");
+          id(sun_next_rising).publish_state("2026-10-30T06:07:00+00:00");
+          id(sun_next_setting).publish_state("2026-10-30T16:01:00+00:00");
+
+          text_sensor::TextSensor *hourly[5] = {id(ha_fc_line_2), id(ha_fc_line_4), id(ha_fc_line_6),
+                                                id(ha_fc_line_8), id(ha_fc_line_10)};
+          const float h_temp[5] = {13.5, 14.0, 11.2, 8.9, 7.6};
+          const char *h_cond[5] = {"partlycloudy", "sunny", "cloudy", "rainy", "clear-night"};
+          for (int k = 0; k < 5; k++) {
+            snprintf(buf, sizeof(buf), "%02dh  %.1f\xC2\xB0""C  %s", (lt.tm_hour + 2 * (k + 1)) % 24, h_temp[k], h_cond[k]);
+            hourly[k]->publish_state(buf);
+          }
+
+          text_sensor::TextSensor *d_label[4] = {id(ha_fc_day2_label), id(ha_fc_day3_label), id(ha_fc_day4_label), id(ha_fc_day5_label)};
+          text_sensor::TextSensor *d_cond[4]  = {id(ha_fc_day2_cond),  id(ha_fc_day3_cond),  id(ha_fc_day4_cond),  id(ha_fc_day5_cond)};
+          text_sensor::TextSensor *d_temps[4] = {id(ha_fc_day2_temps), id(ha_fc_day3_temps), id(ha_fc_day4_temps), id(ha_fc_day5_temps)};
+          const char *d_c[4]   = {"rainy", "cloudy", "sunny", "lightning-rainy"};
+          const char *d_t[4]   = {"7\xC2\xB0 / 11\xC2\xB0", "5\xC2\xB0 / 10\xC2\xB0", "3\xC2\xB0 / 12\xC2\xB0", "8\xC2\xB0 / 15\xC2\xB0"};
+          for (int k = 0; k < 4; k++) {
+            d_label[k]->publish_state(day(k + 1, "%a"));
+            d_cond[k]->publish_state(d_c[k]);
+            d_temps[k]->publish_state(d_t[k]);
+          }
+
+          // Car
+          id(car_fuel_level).publish_state(64);
+          id(car_range).publish_state(512);
+          id(car_lock_state).publish_state("locked");
+
+          // Alarm bar (packages/reterminal_alarms.yaml)
+          id(ha_alarms).publish_state("Weather: Strong Gusts until 18:00|Kitchen window open");
+
+          // Rooms: temperature, humidity
+          id(temp_living).publish_state(21.4);      id(hum_living).publish_state(52);
+          id(temp_bedroom).publish_state(18.6);     id(hum_bedroom).publish_state(58);
+          id(co2_bedroom).publish_state(840);
+          id(temp_child).publish_state(20.1);       id(hum_child).publish_state(55);
+          id(temp_kitchen).publish_state(19.2);     id(hum_kitchen).publish_state(61);
+          id(temp_bathroom).publish_state(22.8);    id(hum_bathroom).publish_state(71);
+          id(temp_hallway).publish_state(19.8);     id(hum_hallway).publish_state(54);
+          id(temp_cheddar).publish_state(28.5);     id(hum_cheddar).publish_state(42);
+          id(temp_coat_closet).publish_state(17.3);
+          id(heat_living).publish_state("heating");
+          id(heat_bedroom).publish_state("idle");
+          id(heat_arthur).publish_state("heating");
+          id(heat_kitchen).publish_state("idle");
+          id(heat_bathroom).publish_state("off");
+          id(win_living).publish_state(false);
+          id(win_bedroom).publish_state(false);
+          id(win_arthur).publish_state(false);
+          id(win_kitchen).publish_state(true);
+
+          // The reTerminal's own sensors
+          id(sht4x_temperature).publish_state(21.9);
+          id(sht4x_humidity).publish_state(49);
+          id(battery_voltage).publish_state(3.98);
+          id(battery_level).publish_state(78);
+
+          // Homelab
+          auto boot_iso = [&](int days_ago) -> std::string {
+            time_t t = now - days_ago * 86400;
+            struct tm u;
+            gmtime_r(&t, &u);
+            strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S+00:00", &u);
+            return buf;
+          };
+          id(pve_home_online).publish_state(true);
+          id(pve_home_cpu).publish_state(9);       id(pve_home_mem).publish_state(61);
+          id(pve_home_disk).publish_state(38);     id(pve_home_vms).publish_state(1);
+          id(pve_home_cts).publish_state(10);      id(pve_home_updates).publish_state(3);
+          id(pve_home_failed).publish_state(0);    id(pve_home_boot).publish_state(boot_iso(12));
+          id(pve_rptu_online).publish_state(true);
+          id(pve_rptu_cpu).publish_state(17);      id(pve_rptu_mem).publish_state(44);
+          id(pve_rptu_disk).publish_state(72);     id(pve_rptu_vms).publish_state(0);
+          id(pve_rptu_cts).publish_state(12);      id(pve_rptu_updates).publish_state(0);
+          id(pve_rptu_failed).publish_state(1);    id(pve_rptu_boot).publish_state(boot_iso(26));
+
+          binary_sensor::BinarySensor *home[] = {id(g_home_100), id(g_home_101), id(g_home_102), id(g_home_103),
+            id(g_home_104), id(g_home_105), id(g_home_106), id(g_home_107), id(g_home_108), id(g_home_109),
+            id(g_home_111), id(g_home_112), id(g_home_113), id(g_home_115)};
+          const bool home_on[] = {1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1};
+          for (int k = 0; k < 14; k++) home[k]->publish_state(home_on[k]);
+          binary_sensor::BinarySensor *rptu[] = {id(g_rptu_100), id(g_rptu_101), id(g_rptu_102), id(g_rptu_103),
+            id(g_rptu_104), id(g_rptu_105), id(g_rptu_106), id(g_rptu_107), id(g_rptu_108), id(g_rptu_109),
+            id(g_rptu_110), id(g_rptu_111), id(g_rptu_112), id(g_rptu_113)};
+          const bool rptu_on[] = {1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1};
+          for (int k = 0; k < 14; k++) rptu[k]->publish_state(rptu_on[k]);
+
+          id(pihole_online).publish_state(true);
+          id(pihole_blocking).publish_state(true);
+          id(pihole_queries).publish_state(48213);
+          id(pihole_blocked).publish_state(6127);
+          id(pihole_blocked_pct).publish_state(12.7);
+          id(pihole_clients).publish_state(23);
+          id(pihole_blocklist).publish_state(214806);
+      - component.update: epaper_display
+
+host:
+
+logger:
+  level: INFO
+
+# The pages read Home Assistant sensors; the API makes them compile,
+# nothing connects in the demo.
+api:
+
+time:
+  - platform: host
+    id: ha_time
+    timezone: Europe/Berlin
+
+font: !include reterminal_modules/fonts.yaml
+
+# The device's entity lists, minus the hardware sensors (stand-ins below)
+packages:
+  sensors:
+    sensor: !include reterminal_modules/sensors.yaml
+  text_sensors:
+    text_sensor: !include reterminal_modules/text_sensors.yaml
+  homelab: !include reterminal_modules/homelab_entities.yaml
+  climate: !include reterminal_modules/climate_entities.yaml
+
+sensor:
+  - id: !remove sht4x_component
+  - id: !remove battery_voltage
+  - id: !remove battery_level
+  - { platform: template, id: sht4x_temperature }
+  - { platform: template, id: sht4x_humidity }
+  - { platform: template, id: battery_voltage }
+  - { platform: template, id: battery_level }
+
+display:
+  - platform: sdl
+    id: epaper_display
+    dimensions:
+      width: 800
+      height: 480
+    update_interval: never
+    pages:
+      - !include reterminal_modules/page_overview.yaml
+      - !include reterminal_modules/page_climate.yaml
+      - !include reterminal_modules/page_homelab.yaml
+
+# Overview, Climate, Homelab in turn (for the screenshot script)
+interval:
+  - interval: 3s
+    startup_delay: 3s
+    then:
+      - display.page.show_next: epaper_display
+      - component.update: epaper_display

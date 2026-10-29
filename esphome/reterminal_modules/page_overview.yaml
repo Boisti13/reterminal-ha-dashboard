@@ -1,0 +1,830 @@
+id: page_overview
+lambda: |-
+  #define ICON_arrow_up        "\U000F0143"
+  #define ICON_arrow_down      "\U000F0140"
+  #define ICON_arrow_stable    "\U000F0142"
+  #define ICON_temp_max        "\U000F0E03"
+  #define ICON_temp_min        "\U000F0E02"
+
+  #define ICON_weather_sunny           "\U000F0599"
+  #define ICON_weather_night           "\U000F0594"
+  #define ICON_weather_partly_cloudy   "\U000F0595"
+  #define ICON_weather_night_cloudy    "\U000F0F31"
+  #define ICON_weather_cloudy          "\U000F0590"
+  #define ICON_weather_fog             "\U000F0591"
+  #define ICON_weather_rainy           "\U000F0597"
+  #define ICON_weather_snowy           "\U000F0598"
+  #define ICON_weather_snowy_rainy     "\U000F067F"
+  #define ICON_weather_pouring         "\U000F0596"
+  #define ICON_weather_lightning_rainy "\U000F067E"
+  #define ICON_weather_lightning       "\U000F0593"
+  #define ICON_weather_windy           "\U000F059D"
+  #define ICON_weather_windy_variant   "\U000F059E"
+
+  // Helper: map condition string to icon
+  auto icon_for_cond = [&](const std::string &cond) -> const char* {
+    if (cond == "sunny" || cond == "clear" || cond == "clear-day") return ICON_weather_sunny;
+    if (cond == "clear-night") return ICON_weather_night;
+    if (cond == "partlycloudy" || cond == "partly-cloudy" || cond == "partly-cloudy-day") return ICON_weather_partly_cloudy;
+    if (cond == "partly-cloudy-night") return ICON_weather_night_cloudy;
+    if (cond == "cloudy" || cond == "overcast") return ICON_weather_cloudy;
+    if (cond == "fog" || cond == "hazy") return ICON_weather_fog;
+    if (cond == "rainy" || cond == "rain") return ICON_weather_rainy;
+    if (cond == "pouring") return ICON_weather_pouring;
+    if (cond == "lightning") return ICON_weather_lightning;
+    if (cond == "lightning-rainy" || cond == "thunderstorm") return ICON_weather_lightning_rainy;
+    if (cond == "windy") return ICON_weather_windy;
+    if (cond == "windy-variant") return ICON_weather_windy_variant;
+    if (cond == "snowy") return ICON_weather_snowy;
+    if (cond == "snowy-rainy" || cond == "hail") return ICON_weather_snowy_rainy;
+    return ICON_weather_cloudy;
+  };
+
+  const int WIDTH  = 800;
+  const int HEIGHT = 480;
+  const int MARGIN = 20;
+  const int COL_SPLIT = 400;
+  const int HEADER_Y = 10;
+
+  it.fill(COLOR_OFF);
+
+  // Shared header (date, battery, divider) from ui_header.h
+  draw_header(it, id(font_header), id(font_small), id(battery_icons_small), id(ha_time).now(),
+              id(battery_level).has_state() ? id(battery_level).state : NAN, "No date");
+
+  // ================= END HEADER ==========================
+
+  const int line_h = 25;
+
+  // =====================================================
+  // LEFT COLUMN: CALENDAR
+  //  - Next appointment: sensor.reterminal_next_appointment (font_medium)
+  //  - Next 7 days (excluding next): sensor.reterminal_next_7d_calendar (font_medium_s)
+  //  - Columns: DAY / DATE / TIME / DESCRIPTION
+  // =====================================================
+
+  int left_x = MARGIN;
+  int y = 60;
+
+  const int line_h_small = 22;
+  const int line_h_big   = 25;
+
+  // Column x positions (tune to your layout/fonts)
+  const int x_day   = left_x;        // Today / Tue / Wed
+  const int x_date  = left_x + 50;   // 16.12
+  const int x_time  = left_x + 100;  // 08:00 (24h)
+  const int x_desc  = left_x + 150;  // Title
+
+  // Must match HA formatter for the 7d list
+  const int label_w = 14;
+
+  // ---------- helpers ----------
+  auto trim = [](std::string &s) {
+    while (!s.empty() && (s.front() == ' ' || s.front() == '\t' || s.front() == '\n' || s.front() == '\r'))
+      s.erase(s.begin());
+    while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\n' || s.back() == '\r'))
+      s.pop_back();
+  };
+
+  auto split_lines = [](const std::string &s) -> std::vector<std::string> {
+    std::vector<std::string> lines;
+    std::string cur;
+    cur.reserve(s.size());
+    for (char c : s) {
+      if (c == '\r') continue;
+      if (c == '\n') { lines.push_back(cur); cur.clear(); }
+      else cur.push_back(c);
+    }
+    lines.push_back(cur);
+    return lines;
+  };
+
+  // Parse next appointment string from HA:
+  // "Tue 16.12 08:00  Zöller" (or similar)
+  auto parse_next_appt = [&](const std::string &raw,
+                            std::string &day3,
+                            std::string &date_ddmm,
+                            std::string &time_hhmm,
+                            std::string &desc) -> bool {
+    day3.clear(); date_ddmm.clear(); time_hhmm.clear(); desc.clear();
+
+    std::string s = raw;
+    trim(s);
+    if (s.empty()) return false;
+    if (s.rfind("No upcoming events", 0) == 0) return false;
+
+    // Expect fixed positions: 0..2 day, 4..8 date, 10..14 time, 15.. desc
+    if (s.size() < 16) return false;
+
+    day3      = s.substr(0, 3);
+    date_ddmm = s.substr(4, 5);
+    time_hhmm = s.substr(10, 5);
+    desc      = (s.size() > 15) ? s.substr(15) : "";
+    trim(desc);
+
+    if (desc.empty()) desc = "(no title)";
+    return true;
+  };
+
+  // Parse one HA 7-day line into label/time/desc
+  // Expected layout: [label_w chars][spaces][HH:MM][spaces][desc]
+  auto parse_7d_line = [&](const std::string &line,
+                          std::string &label,
+                          std::string &time,
+                          std::string &desc) -> bool {
+    label.clear(); time.clear(); desc.clear();
+
+    std::string t = line;
+    trim(t);
+    if (t.empty()) return false;
+
+    // fallback sentence
+    if (t == "No further events in next 7 days." || t == "No events in next 7 days.") {
+      desc = t;
+      return true;
+    }
+
+    const std::string &o = line;
+
+    if ((int)o.size() < label_w) {
+      desc = t;
+      return true;
+    }
+
+    label = o.substr(0, label_w);
+    trim(label);
+
+    // find HH:MM after label col
+    int tpos = label_w;
+    while (tpos + 5 <= (int)o.size()) {
+      if (isdigit((unsigned char)o[tpos]) &&
+          isdigit((unsigned char)o[tpos + 1]) &&
+          o[tpos + 2] == ':' &&
+          isdigit((unsigned char)o[tpos + 3]) &&
+          isdigit((unsigned char)o[tpos + 4])) {
+        time = o.substr(tpos, 5);
+        int dpos = tpos + 5;
+        while (dpos < (int)o.size() && o[dpos] == ' ') dpos++;
+        desc = (dpos < (int)o.size()) ? o.substr(dpos) : "";
+        trim(desc);
+        return true;
+      }
+      tpos++;
+    }
+
+    desc = t;
+    return true;
+  };
+
+  // Build "Today" label if next appt date equals today's dd.mm; otherwise "Tue 16.12"
+  auto build_day_label_for_next = [&](const std::string &day3, const std::string &date_ddmm) -> std::string {
+    auto n = id(ha_time).now();
+    char today_ddmm[6];
+    snprintf(today_ddmm, sizeof(today_ddmm), "%02d.%02d", n.day_of_month, n.month);
+
+    if (date_ddmm == std::string(today_ddmm)) return "Today";
+    return day3 + std::string(" ") + date_ddmm;
+  };
+
+  // Split label into day/date columns:
+  // - "Today" -> day="Today", date=today's dd.mm from ha_time
+  // - "Tue 16.12" -> day="Tue", date="16.12"
+  auto split_day_date = [&](const std::string &label_in, std::string &day_out, std::string &date_out) {
+    day_out.clear();
+    date_out.clear();
+
+    std::string s = label_in;
+    trim(s);
+    if (s.empty()) return;
+
+    if (s == "Today") {
+      day_out = "Today";
+      auto n = id(ha_time).now();
+      char buf[6];
+      snprintf(buf, sizeof(buf), "%02d.%02d", n.day_of_month, n.month);
+      date_out = buf;
+      return;
+    }
+
+    auto pos = s.find(' ');
+    if (pos != std::string::npos) {
+      day_out  = s.substr(0, pos);
+      date_out = s.substr(pos + 1);
+      trim(day_out);
+      trim(date_out);
+    } else {
+      day_out = s;
+    }
+  };
+
+  // Shorten text with "..." so it fits into max_w pixels (UTF-8 safe)
+  auto fit_text = [&](std::string s, font::Font *f, int max_w) -> std::string {
+    int x1, y1, w, h;
+    it.get_text_bounds(0, 0, s.c_str(), f, TextAlign::TOP_LEFT, &x1, &y1, &w, &h);
+    if (w <= max_w) return s;
+    while (!s.empty()) {
+      // drop one UTF-8 character
+      while (!s.empty() && ((unsigned char)s.back() & 0xC0) == 0x80) s.pop_back();
+      if (!s.empty()) s.pop_back();
+      while (!s.empty() && s.back() == ' ') s.pop_back();
+      std::string t = s + "...";
+      it.get_text_bounds(0, 0, t.c_str(), f, TextAlign::TOP_LEFT, &x1, &y1, &w, &h);
+      if (w <= max_w) return t;
+    }
+    return "";
+  };
+
+  const int desc_max_w = (COL_SPLIT - 10) - x_desc;  // stop before weather column
+  const int CAR_Y      = 352;                         // car block (below the calendar)
+  const int cal_bottom = CAR_Y - 6;                   // calendar stops above the car block
+
+  // ---------- Header ----------
+  it.print(left_x, y, id(font_big), COLOR_ON, "Upcoming");
+  y += 30;
+  it.line(left_x, y, COL_SPLIT - 10, y, COLOR_ON);
+  y += 10;
+
+  // ---------- 1) Next appointment (big font) ----------
+  {
+    std::string raw = id(cal_next_appt).state;
+    std::string day3, date_ddmm, time_hhmm, desc;
+
+    if (parse_next_appt(raw, day3, date_ddmm, time_hhmm, desc)) {
+      std::string label = build_day_label_for_next(day3, date_ddmm); // "Today" or "Tue 16.12"
+      std::string dday, ddate;
+      split_day_date(label, dday, ddate);
+
+      if (!dday.empty())  it.print(x_day,  y, id(font_medium), COLOR_ON, dday.c_str());
+      if (!ddate.empty()) it.print(x_date, y, id(font_medium), COLOR_ON, ddate.c_str());
+      it.print(x_time, y, id(font_medium), COLOR_ON, time_hhmm.c_str());
+      it.print(x_desc, y, id(font_medium), COLOR_ON, fit_text(desc, id(font_medium), desc_max_w).c_str());
+
+      y += line_h_big;
+      y += 4;  // small gap after next appointment line
+    }
+  }
+
+  // ---------- All-day events: parse first so the timed list leaves room ----------
+  struct AllDay { std::string wday, start, end, title; };
+  std::vector<AllDay> allday;
+  {
+    std::string raw = id(cal_allday).has_state() ? id(cal_allday).state : "";
+    trim(raw);
+    if (!raw.empty() && raw != "none" && raw != "unknown" && raw != "unavailable") {
+      for (auto &ln : split_lines(raw)) {
+        AllDay a;
+        std::string *fields[4] = {&a.wday, &a.start, &a.end, &a.title};
+        size_t start = 0;
+        for (int f = 0; f < 4; f++) {
+          size_t p = (f < 3) ? ln.find('|', start) : std::string::npos;
+          *fields[f] = ln.substr(start, p == std::string::npos ? std::string::npos : p - start);
+          trim(*fields[f]);
+          if (p == std::string::npos) break;
+          start = p + 1;
+        }
+        if (!a.title.empty()) allday.push_back(a);
+      }
+    }
+  }
+  const int allday_gap   = 10;   // space between timed list and all-day block
+  const int allday_head  = 30;   // "All day" title + line
+  const int allday_h     = allday.empty() ? 0 : allday_gap + allday_head + (int) allday.size() * line_h_small;
+  const int timed_bottom = cal_bottom - allday_h;
+
+  // ---------- 2) Next 7 days (excluding next appointment) ----------
+  {
+    std::string raw = id(cal_next_7d).state;
+    trim(raw);
+
+    if (raw.empty()) {
+      it.print(left_x, y, id(font_medium_s), COLOR_ON, "No further events.");
+      y += line_h_small;
+    } else {
+      auto lines = split_lines(raw);
+
+      for (auto &ln : lines) {
+        // stop before the all-day block / car block
+        if (y + line_h_small > timed_bottom) break;
+
+        std::string label, time, desc;
+        if (!parse_7d_line(ln, label, time, desc)) continue;
+
+        // fallback sentence from HA
+        if (desc == "No further events in next 7 days." || desc == "No events in next 7 days.") {
+          it.print(left_x, y, id(font_medium_s), COLOR_ON, desc.c_str());
+          y += line_h_small;
+          break;
+        }
+
+        std::string dday, ddate;
+        split_day_date(label, dday, ddate);
+
+        if (!dday.empty())  it.print(x_day,  y, id(font_medium_s), COLOR_ON, dday.c_str());
+        if (!ddate.empty()) it.print(x_date, y, id(font_medium_s), COLOR_ON, ddate.c_str());
+        if (!time.empty()) {
+            it.print(x_time, y, id(font_medium_s), COLOR_ON, time.c_str());
+          }
+
+        if (!desc.empty())  it.print(x_desc, y, id(font_medium_s), COLOR_ON, fit_text(desc, id(font_medium_s), desc_max_w).c_str());
+
+        y += line_h_small;
+      }
+    }
+  }
+
+  // ---------- 3) All-day events (start - end instead of a time) ----------
+  if (!allday.empty()) {
+    y += allday_gap;
+    it.print(left_x, y, id(font_medium), COLOR_ON, "All day");
+    y += 22;
+    it.line(left_x, y, COL_SPLIT - 10, y, COLOR_ON);
+    y += 8;
+
+    for (auto &a : allday) {
+      if (y + line_h_small > cal_bottom) break;
+      if (!a.wday.empty())  it.print(x_day,  y, id(font_medium_s), COLOR_ON, a.wday.c_str());
+      if (!a.start.empty()) it.print(x_date, y, id(font_medium_s), COLOR_ON, a.start.c_str());
+      if (!a.end.empty()) {
+        it.print(x_time - 7, y, id(font_medium_s), COLOR_ON, TextAlign::TOP_CENTER, "-");
+        it.print(x_time, y, id(font_medium_s), COLOR_ON, a.end.c_str());
+      }
+      it.print(x_desc, y, id(font_medium_s), COLOR_ON, fit_text(a.title, id(font_medium_s), desc_max_w).c_str());
+      y += line_h_small;
+    }
+  }
+
+  // =====================================================
+  // LEFT COLUMN BOTTOM: CAR (Hyundai i30) - fuel, range, lock
+  // =====================================================
+  {
+    #define ICON_car        "\U000F010B"
+    #define ICON_fuel       "\U000F0298"
+    #define ICON_range      "\U000F08F0"
+    #define ICON_locked     "\U000F033E"
+    #define ICON_unlocked   "\U000F0FC6"
+
+    int cy = CAR_Y;
+    it.print(left_x, cy, id(car_icons), COLOR_ON, ICON_car);
+    it.print(left_x + 26, cy, id(font_medium), COLOR_ON, "i30");
+    cy += 26;
+    it.line(left_x, cy, COL_SPLIT - 10, cy, COLOR_ON);
+    cy += 8;
+
+    // three equal columns: fuel | range | lock
+    const int col_w = (COL_SPLIT - 10 - left_x) / 3;
+    char buf[24];
+
+    // Fuel level
+    float fuel = id(car_fuel_level).state;
+    if (std::isnan(fuel)) snprintf(buf, sizeof(buf), "--");
+    else                  snprintf(buf, sizeof(buf), "%.0f%%", fuel);
+    it.print(left_x, cy, id(car_icons), COLOR_ON, ICON_fuel);
+    it.print(left_x + 26, cy + 2, id(font_medium), COLOR_ON, buf);
+
+    // Range
+    float range = id(car_range).state;
+    if (std::isnan(range)) snprintf(buf, sizeof(buf), "--");
+    else                   snprintf(buf, sizeof(buf), "%.0f km", range);
+    it.print(left_x + col_w, cy, id(car_icons), COLOR_ON, ICON_range);
+    it.print(left_x + col_w + 26, cy + 2, id(font_medium), COLOR_ON, buf);
+
+    // Lock state
+    const std::string lock = id(car_lock_state).has_state() ? id(car_lock_state).state : "";
+    const bool locked   = (lock == "locked");
+    const bool unlocked = (lock == "unlocked" || lock == "open");
+    const char *lock_txt = locked ? "Locked" : (unlocked ? "Unlocked" : "--");
+    it.print(left_x + 2 * col_w, cy, id(car_icons), COLOR_ON, unlocked ? ICON_unlocked : ICON_locked);
+    it.print(left_x + 2 * col_w + 26, cy + 2, id(font_medium), COLOR_ON, lock_txt);
+  }
+
+  // =====================================================
+  // RIGHT COLUMN: WEATHER WITH ICONS + FORECAST
+  // =====================================================
+  
+  int right_x = COL_SPLIT + 20;
+  int right_x2= right_x + 120;
+  int wy = 60;
+
+  // Header
+  it.print(right_x, wy, id(font_big), COLOR_ON, "Weather");
+  wy += 30;
+  it.line(right_x, wy, WIDTH - MARGIN, wy, COLOR_ON);
+  wy += 10;
+  int wy2 = wy;
+  
+  // --- Current condition icon + text ---
+  std::string cond = id(ha_weather_condition).state;
+  const char* w_icon = icon_for_cond(cond);
+
+  int weather_cx = right_x + 60;
+
+  // Big icon (centered)
+  // Icon + label are shifted down so they sit centered next to the Current..Sun rows
+  const int cond_dy = 12;
+  it.print(weather_cx, wy + 25 + cond_dy, id(weather_icons_large), TextAlign::CENTER, w_icon);
+  wy += 60;
+
+  // Condition text (centered)
+  //it.printf(weather_cx, wy, id(font_medium), TextAlign::CENTER, "%s", cond.c_str());
+
+  it.printf(weather_cx, wy + cond_dy, id(font_medium), TextAlign::CENTER, "%s", weather_to_text(id(ha_weather_condition).state));
+
+  wy += 10;
+
+  // --- Outdoor temp + humidity (current) + pressure ---
+
+    float t = id(ha_outdoor_temp).state;
+    float h = id(ha_outdoor_humidity).state;
+    float tmin = id(ha_today_temp_min).state;
+    float tmax = id(ha_today_temp_max).state;
+    
+    float pressure = id(indoor_atmospheric_pressure).state;
+    // Pick icon based on trend text
+    const char *trend_icon = "\U000F0142";  // default: stable
+    std::string trend = id(indoor_pressure_trend).state;
+    
+    char buf[48];
+
+  // Labels ("Current:", "Today:", "Sun:") are right-aligned so the colons line up
+  const int label_end = right_x2 + 60;
+  // Value columns shared by the Today (min/max) and Sun (rise/set) rows
+  const int col_a = label_end + 20;   // min temp / sunrise   (icon, text at +22)
+  const int col_b = label_end + 108;  // max temp / sunset    (room for "-12.3°C" in col_a)
+
+  // Line 1: current temp + humidity
+  it.print(label_end, wy2, id(font_medium), COLOR_ON, TextAlign::TOP_RIGHT, "Current:");
+  if (!isnan(t) && !isnan(h)) {
+    snprintf(buf, sizeof(buf), "%.1f°C  /  %.0f%%", t, h);
+  } else {
+    snprintf(buf, sizeof(buf), "Current: n/a");
+  }
+  it.print(right_x2+80, wy2, id(font_medium), buf);
+  wy += line_h;
+  wy2 += line_h;
+
+  // Line 2: Current pressure + trend
+
+  if (trend == "up" || trend == "rising") {
+    trend_icon = "\U000F0143";
+  } else if (trend == "down" || trend == "falling") {
+    trend_icon = "\U000F0140";
+  }
+
+  // Render pressure value
+  if (!isnan(pressure)) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%.1f hPa", pressure);
+
+    it.print(right_x2 + 80, wy2, id(font_medium), COLOR_ON, buf);
+
+    // Trend icon to the right of the value
+    it.print(right_x2 + 160, wy2, id(trend_icons), COLOR_ON, trend_icon);
+  } else {
+    it.print(right_x2 + 80, wy2, id(font_medium), COLOR_ON, "Pressure: n/a");
+  }
+
+  wy2 += line_h;
+
+  // Line 3: today's min/max from forecast
+  
+  {
+    // --- Label ---
+    it.print(label_end, wy2, id(font_medium), COLOR_ON, TextAlign::TOP_RIGHT, "Today:");
+
+    int cx = col_a;
+
+    if (!isnan(tmin) && !isnan(tmax)) {
+      char buf[32];
+
+      // --- Min icon ---
+      it.print(cx, wy2, id(min_max_icons), COLOR_ON, ICON_temp_min);
+      cx += 22;   // spacing after icon
+
+      // --- Min temp ---
+      snprintf(buf, sizeof(buf), "%.1f°C", tmin);
+      it.print(cx, wy2, id(font_medium), COLOR_ON, buf);
+      cx = col_b;
+
+      // --- Max icon ---
+      it.print(cx, wy2, id(min_max_icons), COLOR_ON, ICON_temp_max);
+      cx += 22;
+
+      // --- Max temp ---
+      snprintf(buf, sizeof(buf), "%.1f°C", tmax);
+      it.print(cx, wy2, id(font_medium), COLOR_ON, buf);
+
+    } else {
+      it.print(right_x2 + 95, wy2, id(font_medium), COLOR_ON, "n/a");
+    }
+  }
+
+  wy2 += line_h;
+
+  // Line 4: sunrise / sunset (part of "today"), aligned with the min/max columns above
+  {
+    #define ICON_sunrise "\U000F059C"
+    #define ICON_sunset  "\U000F059B"
+
+    // HA sends UTC ISO strings -> local "HH:MM"
+    auto local_hhmm = [&](text_sensor::TextSensor *ts) -> std::string {
+      if (!ts->has_state()) return "--:--";
+      const long epoch = iso_utc_to_epoch(ts->state);
+      if (epoch < 0) return "--:--";
+      return ESPTime::from_epoch_local((time_t) epoch).strftime("%H:%M");
+    };
+
+    it.print(label_end, wy2, id(font_medium), COLOR_ON, TextAlign::TOP_RIGHT, "Sun:");
+
+    int cx = col_a;           // same column as the min temp
+    it.print(cx, wy2 - 1, id(sun_icons), COLOR_ON, ICON_sunrise);
+    it.print(cx + 22, wy2, id(font_medium), COLOR_ON, local_hhmm(id(sun_next_rising)).c_str());
+    cx = col_b;               // same column as the max temp
+    it.print(cx, wy2 - 1, id(sun_icons), COLOR_ON, ICON_sunset);
+    it.print(cx + 22, wy2, id(font_medium), COLOR_ON, local_hhmm(id(sun_next_setting)).c_str());
+  }
+
+  // =====================================================
+  // Next 8h in 2h steps (one row, 4 columns)
+  // =====================================================
+
+  // Hourly + daily forecast sit lower, closer to the alarm bar
+  // (room above for the Today / Sun rows). The daily block follows wy.
+  wy += 24;
+  const int fc_x = right_x + 10;  // left edge of both forecast rows (shift right here)
+
+  {
+    const int col_width = 70;               // width per column – tweak as needed
+    const int base_x    = fc_x;             // left edge of first column
+    const int time_y    = wy;               // row for time text
+    const int icon_y    = wy + line_h + 10;  // row for icon
+    const int temp_y    = wy + line_h*2 + 15;  // row for temp text
+
+    auto draw_hour_block = [&](const std::string &line, int col_index) {
+      if (line.empty() || line == "unavailable") return;
+
+      int x = base_x + col_index * col_width + col_width / 2;
+      //int x = right_x + col_width / 2;
+
+      // ---------- 1) Parse hour "07" -> "7am"/"7pm" ----------
+      int hour24 = 0;
+      if (line.size() >= 2) {
+        hour24 = atoi(line.substr(0, 2).c_str());
+      }
+      bool is_pm = hour24 >= 12;
+      int hour12 = hour24 % 12;
+      if (hour12 == 0) hour12 = 12;
+
+      char time_buf[8];
+      sprintf(time_buf, "%d%s", hour12, is_pm ? "pm" : "am");
+
+      // ---------- 2) Parse temperature between "h  " and "°C" ----------
+      std::string temp_str;
+      size_t h_pos   = line.find('h');
+      size_t deg_pos = line.find("°C");
+      if (h_pos != std::string::npos && deg_pos != std::string::npos && deg_pos > h_pos + 2) {
+        size_t start = h_pos + 3;  // skip "h  "
+        temp_str = line.substr(start, deg_pos - start);
+        // trim spaces
+        while (!temp_str.empty() && temp_str.front() == ' ') temp_str.erase(0, 1);
+        while (!temp_str.empty() && temp_str.back()  == ' ') temp_str.pop_back();
+      }
+
+      // ---------- 3) Parse condition after "°C  " ----------
+      std::string cond_str = "cloudy";
+      if (deg_pos != std::string::npos) {
+        size_t cond_pos = line.find("  ", deg_pos);
+        if (cond_pos != std::string::npos && cond_pos + 2 < line.size()) {
+          cond_str = line.substr(cond_pos + 2);  // e.g. "cloudy"
+        }
+      }
+
+      // ---------- 4) Map condition -> icon glyph ----------
+      const char *icon = icon_for_cond(cond_str);
+
+      // ---------- 5) Draw time ----------      
+      it.printf(x, time_y, id(font_medium_s), TextAlign::CENTER, "%s", time_buf);
+
+      // ---------- 6) Draw icon using weather_icons_small font ----------
+      it.print(x, icon_y, id(weather_icons_small), TextAlign::CENTER, icon);
+
+      // ---------- 7) Draw temperature ----------
+      it.printf(x, temp_y, id(font_small), TextAlign::CENTER, "%s°", temp_str.c_str());
+    };
+
+    // Five columns: +2h, +4h, +6h, +8h, +10h
+    draw_hour_block(id(ha_fc_line_2).state, 0);  // +2h
+    draw_hour_block(id(ha_fc_line_4).state, 1);  // +4h
+    draw_hour_block(id(ha_fc_line_6).state, 2);  // +6h
+    draw_hour_block(id(ha_fc_line_8).state, 3);  // +8h
+    draw_hour_block(id(ha_fc_line_10).state, 4); // +10h
+
+    // Move wy below this row
+    wy = temp_y + line_h;
+  }
+
+  // =====================================================
+  // --- Next 4 days: 4 columns (Day / Icon / Min/Max) ---
+  // =====================================================
+
+  // Column layout
+  const int col_width   = 90;              // increase for more space between days
+  const int col1_center = fc_x + col_width / 2;
+  const int col2_center = fc_x + col_width + col_width / 2;
+  const int col3_center = fc_x + 2 * col_width + col_width / 2;
+  const int col4_center = fc_x + 3 * col_width + col_width / 2;
+
+  // Row Y positions (tune these for vertical spacing)
+  const int day_y_offset  = 0;   // "Mon/Tue/Wed"
+  const int icon_y_offset = 20;  // icons below the day labels
+  const int temp_y_offset = 85;  // temps below icons
+
+  int base_y = wy;
+
+  // --- Row 1: Day labels (centered over icons) ---
+  std::string d1 = id(ha_fc_day2_label).state;
+  std::string d2 = id(ha_fc_day3_label).state;
+  std::string d3 = id(ha_fc_day4_label).state;
+  std::string d4 = id(ha_fc_day5_label).state;
+
+  if (!d1.empty() && d1 != "-") {
+    it.printf(col1_center, base_y + day_y_offset,
+              id(font_medium), TextAlign::TOP_CENTER,
+              "%s", d1.c_str());
+  }
+  if (!d2.empty() && d2 != "-") {
+    it.printf(col2_center, base_y + day_y_offset,
+              id(font_medium), TextAlign::TOP_CENTER,
+              "%s", d2.c_str());
+  }
+  if (!d3.empty() && d3 != "-") {
+    it.printf(col3_center, base_y + day_y_offset,
+              id(font_medium), TextAlign::TOP_CENTER,
+              "%s", d3.c_str());
+
+  }
+  if (!d4.empty() && d4 != "-") {
+    it.printf(col4_center, base_y + day_y_offset,
+              id(font_medium), TextAlign::TOP_CENTER,
+              "%s", d4.c_str());
+  }
+
+  // --- Row 2: Icons (centered) ---
+  std::string c1 = id(ha_fc_day2_cond).state;
+  std::string c2 = id(ha_fc_day3_cond).state;
+  std::string c3 = id(ha_fc_day4_cond).state;
+  std::string c4 = id(ha_fc_day5_cond).state;
+
+  if (!c1.empty() && c1 != "unknown") {
+    it.printf(col1_center, base_y + icon_y_offset,
+              id(weather_icons_large), TextAlign::TOP_CENTER,
+              "%s", icon_for_cond(c1));
+  }
+  if (!c2.empty() && c2 != "unknown") {
+    it.printf(col2_center, base_y + icon_y_offset,
+              id(weather_icons_large), TextAlign::TOP_CENTER,
+              "%s", icon_for_cond(c2));
+  }
+  if (!c3.empty() && c3 != "unknown") {
+    it.printf(col3_center, base_y + icon_y_offset,
+              id(weather_icons_large), TextAlign::TOP_CENTER,
+              "%s", icon_for_cond(c3));
+  }
+  if (!c4.empty() && c4 != "unknown") {
+    it.printf(col4_center, base_y + icon_y_offset,
+              id(weather_icons_large), TextAlign::TOP_CENTER,
+              "%s", icon_for_cond(c4));
+  }
+
+  // --- Row 3: Min/Max temps (centered, plain text) ---
+  {
+    std::string t1 = id(ha_fc_day2_temps).state;
+    std::string t2 = id(ha_fc_day3_temps).state;
+    std::string t3 = id(ha_fc_day4_temps).state;
+    std::string t4 = id(ha_fc_day5_temps).state;
+
+    if (!t1.empty() && t1 != "-") {
+      it.printf(col1_center,
+                base_y + temp_y_offset,
+                id(font_medium_s),
+                TextAlign::TOP_CENTER,
+                "%s",
+                t1.c_str());
+    }
+
+    if (!t2.empty() && t2 != "-") {
+      it.printf(col2_center,
+                base_y + temp_y_offset,
+                id(font_medium_s),
+                TextAlign::TOP_CENTER,
+                "%s",
+                t2.c_str());
+    }
+
+    if (!t3.empty() && t3 != "-") {
+      it.printf(col3_center,
+                base_y + temp_y_offset,
+                id(font_medium_s),
+                TextAlign::TOP_CENTER,
+                "%s",
+                t3.c_str());
+    }
+
+    if (!t4.empty() && t4 != "-") {
+      it.printf(col4_center,
+                base_y + temp_y_offset,
+                id(font_medium_s),
+                TextAlign::TOP_CENTER,
+                "%s",
+                t4.c_str());
+    }
+  }
+
+  // move wy down for what comes after (24h forecast)
+  wy = base_y + temp_y_offset + line_h;
+
+  
+  // =====================================================
+  // BOTTOM: ALARMS
+  //   Source: HA sensor.reterminal_alarms (packages/reterminal_alarms.yaml)
+  //   "OK" = nothing active, otherwise active alarms separated by "|",
+  //   already sorted by priority. Up to 2 lines, then "+N more".
+  // =====================================================
+
+  #define ICON_EXCL_THICK  "\U000F1238"  // exclamation-thick
+  #define ICON_CHECK_BOLD  "\U000F0E1E"  // check-bold
+
+  int bar_y = 420;
+  it.line(MARGIN, bar_y, WIDTH - MARGIN, bar_y, COLOR_ON);
+  bar_y += 8;
+
+  it.print(MARGIN, bar_y, id(font_medium), COLOR_ON, "Alarms");
+
+  // Small "Updated HH:MM" under the title (e-paper keeps the image while asleep)
+  if (id(ha_time).now().is_valid()) {
+    it.print(MARGIN, bar_y + 24, id(font_xs), COLOR_ON, id(ha_time).now().strftime("Updated %H:%M").c_str());
+  }
+
+  {
+    const int x0       = MARGIN + 80;      // first item, right of the title
+    const int x1       = WIDTH - MARGIN;
+    const int row_h    = 22;
+    const int max_rows = 2;
+    const int icon_w   = 18;               // icon + spacing before text
+    const int gap      = 24;               // space between items
+    const int more_w   = 60;               // room kept for "+N more"
+
+    // Parse the HA string
+    std::string raw = id(ha_alarms).has_state() ? id(ha_alarms).state : "";
+    trim(raw);
+    const bool no_data = raw.empty() || raw == "unknown" || raw == "unavailable";
+
+    std::vector<std::string> alarms;
+    if (!no_data && raw != "OK") {
+      size_t start = 0;
+      while (true) {
+        size_t p = raw.find('|', start);
+        std::string item = raw.substr(start, p == std::string::npos ? std::string::npos : p - start);
+        trim(item);
+        if (!item.empty()) alarms.push_back(item);
+        if (p == std::string::npos) break;
+        start = p + 1;
+      }
+    }
+
+    if (no_data) {
+      it.print(x0, bar_y, id(check_icons), COLOR_ON, ICON_EXCL_THICK);
+      it.print(x0 + icon_w, bar_y, id(font_medium_s), COLOR_ON, "No alarm data from Home Assistant");
+    } else if (alarms.empty()) {
+      it.print(x0, bar_y, id(check_icons), COLOR_ON, ICON_CHECK_BOLD);
+      it.print(x0 + icon_w, bar_y, id(font_medium_s), COLOR_ON, "All clear");
+    } else {
+      int x = x0;
+      int y = bar_y;
+      int row = 0;
+      for (size_t i = 0; i < alarms.size(); i++) {
+        const bool last_row  = (row == max_rows - 1);
+        const bool more_left = (i + 1 < alarms.size());
+        const int  limit     = x1 - ((last_row && more_left) ? more_w : 0);
+
+        std::string txt = fit_text(alarms[i], id(font_medium_s), (x1 - x0) - icon_w);
+        int bx, by, w, h;
+        it.get_text_bounds(0, 0, txt.c_str(), id(font_medium_s), TextAlign::TOP_LEFT, &bx, &by, &w, &h);
+        const int need = icon_w + w;
+
+        if (x > x0 && x + need > limit) {
+          if (last_row) {
+            it.printf(std::min(x, x1 - more_w), y, id(font_medium_s), COLOR_ON,
+                      "+%d more", (int) (alarms.size() - i));
+            break;
+          }
+          row++;
+          y += row_h;
+          x = x0;
+        }
+
+        it.print(x, y, id(check_icons), COLOR_ON, ICON_EXCL_THICK);
+        it.print(x + icon_w, y, id(font_medium_s), COLOR_ON, txt.c_str());
+        x += need + gap;
+      }
+    }
+  }

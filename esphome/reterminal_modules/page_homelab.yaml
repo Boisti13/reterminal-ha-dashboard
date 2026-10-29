@@ -1,0 +1,221 @@
+id: page_homelab
+lambda: |-
+  #define ICON_EXCL_THICK  "\U000F1238"  // exclamation-thick
+  #define ICON_CHECK_BOLD  "\U000F0E1E"  // check-bold
+
+  const int WIDTH  = 800;
+  const int HEIGHT = 480;
+  const int MARGIN = 20;
+  const int HEADER_Y = 10;
+
+  it.fill(COLOR_OFF);
+
+  // Shared header (date, battery, divider) from ui_header.h
+  draw_header(it, id(font_header), id(font_small), id(battery_icons_small), id(ha_time).now(),
+              id(battery_level).has_state() ? id(battery_level).state : NAN, "Homelab");
+
+  // ================= HELPERS ==========================
+
+  // 200851 -> "200,851"
+  auto fmt_int = [](float v) -> std::string {
+    if (std::isnan(v)) return "--";
+    char raw[24];
+    snprintf(raw, sizeof(raw), "%ld", (long) lroundf(v));
+    std::string s(raw), out;
+    int start = (s[0] == '-') ? 1 : 0;
+    int digits = s.size() - start;
+    out = s.substr(0, start);
+    for (int i = 0; i < digits; i++) {
+      out.push_back(s[start + i]);
+      int left = digits - i - 1;
+      if (left > 0 && left % 3 == 0) out.push_back(',');
+    }
+    return out;
+  };
+
+  // Days since an ISO timestamp (UTC), -1 if unknown
+  auto days_since = [&](const std::string &iso) -> int {
+    const long boot_ts = iso_utc_to_epoch(iso);
+    auto now = id(ha_time).now();
+    if (boot_ts < 0 || !now.is_valid()) return -1;
+    const long diff = (long) now.timestamp - boot_ts;
+    return diff < 0 ? -1 : (int)(diff / 86400L);
+  };
+
+  struct Guest { const char *name; binary_sensor::BinarySensor *bs; };
+
+  // One Proxmox node block in [x0, x1]
+  auto draw_node = [&](int x0, int x1, const char *title,
+                       binary_sensor::BinarySensor *online,
+                       float cpu, float mem, float disk,
+                       float vms, float cts, float updates, float failed,
+                       const std::string &boot,
+                       const Guest *guests, int n_guests) {
+    int y = 60;
+
+    // Title + online state
+    it.print(x0, y, id(font_big), COLOR_ON, title);
+    const bool is_online = online->has_state() && online->state;
+    const char *st = is_online ? "online" : "offline";
+    int bx1, by1, bw1, bh1;
+    it.get_text_bounds(0, 0, st, id(font_medium_s), TextAlign::TOP_LEFT, &bx1, &by1, &bw1, &bh1);
+    it.print(x1, y + 6, id(font_medium_s), COLOR_ON, TextAlign::TOP_RIGHT, st);
+    it.print(x1 - bw1 - 18, y + 6, id(check_icons), COLOR_ON, is_online ? ICON_CHECK_BOLD : ICON_EXCL_THICK);
+    y += 30;
+    it.line(x0, y, x1, y, COLOR_ON);
+    y += 10;
+
+    // Usage bars
+    auto bar = [&](const char *label, float pct) {
+      const int bx = x0 + 45;
+      const int bw = (x1 - x0) - 95;
+      it.print(x0, y, id(font_medium_s), COLOR_ON, label);
+      it.rectangle(bx, y + 2, bw, 12, COLOR_ON);
+      if (!std::isnan(pct)) {
+        float p = pct < 0 ? 0 : (pct > 100 ? 100 : pct);
+        int fw = (int)((bw - 4) * p / 100.0f);
+        if (fw > 0) it.filled_rectangle(bx + 2, y + 4, fw, 8, COLOR_ON);
+        it.printf(x1, y, id(font_medium_s), COLOR_ON, TextAlign::TOP_RIGHT, "%.0f%%", pct);
+      } else {
+        it.print(x1, y, id(font_medium_s), COLOR_ON, TextAlign::TOP_RIGHT, "--");
+      }
+      y += 22;
+    };
+    bar("CPU", cpu);
+    bar("RAM", mem);
+    bar("Disk", disk);
+    y += 4;
+
+    // Guests running + uptime
+    char buf[48];
+    if (!std::isnan(vms) && !std::isnan(cts)) {
+      snprintf(buf, sizeof(buf), "%.0f VM \xC2\xB7 %.0f CT running", vms, cts);
+    } else {
+      snprintf(buf, sizeof(buf), "Guests: --");
+    }
+    it.print(x0, y, id(font_medium_s), COLOR_ON, buf);
+
+    const int up = days_since(boot);
+    if (up >= 0) {
+      snprintf(buf, sizeof(buf), "Up %d d", up);
+      it.print(x1, y, id(font_medium_s), COLOR_ON, TextAlign::TOP_RIGHT, buf);
+    }
+    y += 20;
+
+    // Updates + failed tasks
+    // Always shown; "--" while the node's data is unavailable in HA
+    if (std::isnan(updates)) snprintf(buf, sizeof(buf), "-- updates");
+    else                     snprintf(buf, sizeof(buf), "%.0f updates", updates);
+    it.print(x0, y, id(font_medium_s), COLOR_ON, buf);
+    if (std::isnan(failed)) snprintf(buf, sizeof(buf), "-- failed tasks");
+    else                    snprintf(buf, sizeof(buf), "%.0f failed tasks", failed);
+    it.print(x1, y, id(font_medium_s), COLOR_ON, TextAlign::TOP_RIGHT, buf);
+    y += 24;
+
+    // Guest grid: 3 columns, filled column-wise, filled dot = running, hollow = stopped
+    const int cols = 3;
+    const int rows = (n_guests + cols - 1) / cols;
+    const int col_w = (x1 - x0) / cols;
+    for (int i = 0; i < n_guests; i++) {
+      const int gx = x0 + (i / rows) * col_w;
+      const int gy = y + (i % rows) * 17;
+      const bool running = guests[i].bs->has_state() && guests[i].bs->state;
+      if (running) it.filled_circle(gx + 5, gy + 8, 4, COLOR_ON);
+      else         it.circle(gx + 5, gy + 8, 4, COLOR_ON);
+      it.print(gx + 15, gy, id(font_small), COLOR_ON, guests[i].name);
+    }
+  };
+
+  // ================= PROXMOX ==========================
+
+  const Guest home_guests[] = {
+    {"haos (VM)",      id(g_home_100)},
+    {"jellyfin",       id(g_home_101)},
+    {"audiobookshelf", id(g_home_102)},
+    {"pihole",         id(g_home_103)},
+    {"debian",         id(g_home_104)},
+    {"zerotier",       id(g_home_105)},
+    {"smb-share",      id(g_home_106)},
+    {"menu",           id(g_home_107)},
+    {"sprout-track-2", id(g_home_108)},
+    {"isponsorblocktv",id(g_home_109)},
+    {"paperless-ngx",  id(g_home_111)},
+    {"crosspoint-sync",id(g_home_112)},
+    {"vaultwarden",    id(g_home_113)},
+    {"calibre-web",    id(g_home_115)},
+  };
+
+  const Guest rptu_guests[] = {
+    {"zerotier",       id(g_rptu_100)},
+    {"jellyfin",       id(g_rptu_101)},
+    {"audiobookshelf", id(g_rptu_102)},
+    {"smb-share",      id(g_rptu_103)},
+    {"navidrome",      id(g_rptu_104)},
+    {"zt-controller",  id(g_rptu_105)},
+    {"backup-server",  id(g_rptu_106)},
+    {"bambuddy",       id(g_rptu_107)},
+    {"snapotter",      id(g_rptu_108)},
+    {"nginx-proxy",    id(g_rptu_109)},
+    {"mumble",         id(g_rptu_110)},
+    {"pto-tracker",    id(g_rptu_111)},
+    {"hoerbuch",       id(g_rptu_112)},
+    {"project-manager",id(g_rptu_113)},
+  };
+
+  draw_node(MARGIN, WIDTH / 2 - 10, "Proxmox Home", id(pve_home_online),
+            id(pve_home_cpu).state, id(pve_home_mem).state, id(pve_home_disk).state,
+            id(pve_home_vms).state, id(pve_home_cts).state,
+            id(pve_home_updates).state, id(pve_home_failed).state,
+            id(pve_home_boot).state, home_guests, sizeof(home_guests) / sizeof(home_guests[0]));
+
+  draw_node(WIDTH / 2 + 10, WIDTH - MARGIN, "Proxmox PVE2", id(pve_rptu_online),
+            id(pve_rptu_cpu).state, id(pve_rptu_mem).state, id(pve_rptu_disk).state,
+            id(pve_rptu_vms).state, id(pve_rptu_cts).state,
+            id(pve_rptu_updates).state, id(pve_rptu_failed).state,
+            id(pve_rptu_boot).state, rptu_guests, sizeof(rptu_guests) / sizeof(rptu_guests[0]));
+
+  // ================= PI-HOLE ==========================
+  {
+    int y = 318;
+    it.line(MARGIN, y, WIDTH - MARGIN, y, COLOR_ON);
+    y += 8;
+
+    it.print(MARGIN, y, id(font_big), COLOR_ON, "Pi-hole");
+
+    const bool ph_online   = id(pihole_online).has_state() && id(pihole_online).state;
+    const bool ph_blocking = id(pihole_blocking).has_state() && id(pihole_blocking).state;
+    const char *ph_text = !ph_online ? "offline" : (ph_blocking ? "blocking active" : "blocking disabled");
+    const bool ph_ok = ph_online && ph_blocking;
+    int tx, ty, tw, th;
+    it.get_text_bounds(0, 0, ph_text, id(font_medium_s), TextAlign::TOP_LEFT, &tx, &ty, &tw, &th);
+    it.print(WIDTH - MARGIN, y + 6, id(font_medium_s), COLOR_ON, TextAlign::TOP_RIGHT, ph_text);
+    it.print(WIDTH - MARGIN - tw - 18, y + 6, id(check_icons), COLOR_ON, ph_ok ? ICON_CHECK_BOLD : ICON_EXCL_THICK);
+    y += 30;
+    it.line(MARGIN, y, WIDTH - MARGIN, y, COLOR_ON);
+    y += 12;
+
+    // 4 stat tiles
+    const int tile_w = (WIDTH - 2 * MARGIN) / 4;
+    auto tile = [&](int idx, const char *label, const std::string &value, const char *sub) {
+      const int cx = MARGIN + idx * tile_w + tile_w / 2;
+      it.print(cx, y, id(font_medium_s), COLOR_ON, TextAlign::TOP_CENTER, label);
+      it.print(cx, y + 20, id(font_header), COLOR_ON, TextAlign::TOP_CENTER, value.c_str());
+      if (sub != nullptr && sub[0] != '\0')
+        it.print(cx, y + 54, id(font_small), COLOR_ON, TextAlign::TOP_CENTER, sub);
+    };
+
+    char pct_buf[24] = "";
+    if (!std::isnan(id(pihole_blocked_pct).state))
+      snprintf(pct_buf, sizeof(pct_buf), "%.1f%% of queries", id(pihole_blocked_pct).state);
+
+    tile(0, "Queries today", fmt_int(id(pihole_queries).state), "");
+    tile(1, "Blocked today", fmt_int(id(pihole_blocked).state), pct_buf);
+    tile(2, "Active clients", fmt_int(id(pihole_clients).state), "");
+    tile(3, "Blocklist", fmt_int(id(pihole_blocklist).state), "domains");
+
+    // vertical separators between tiles
+    for (int i = 1; i < 4; i++) {
+      const int sx = MARGIN + i * tile_w;
+      it.line(sx, y, sx, y + 68, COLOR_ON);
+    }
+  }

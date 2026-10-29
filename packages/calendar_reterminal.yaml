@@ -1,0 +1,149 @@
+###############################################################################
+# reTerminal calendar feed
+#
+# One calendar.get_events call (today 00:00 .. +7 days) fills three helpers,
+# so the big "next appointment" line, the timed list and the all-day block
+# always agree:
+#   - Next appointment : next TIMED event that has not ended yet
+#                        format "Tue 06.10 12:30  Title" (fixed positions, parsed on the device)
+#   - Next 7d list     : further timed events, "<label 14 chars>  HH:MM  Title" per line
+#   - All-day list     : all-day events still running/upcoming, "Ddd|DD.MM|DD.MM|Title" per line
+#                        (end date empty for single-day events; Google's exclusive end -1 day)
+# If Google is unreachable the service call fails and the previous values stay.
+###############################################################################
+
+# ---------- Helpers ----------
+input_text:
+  reterminal_next_appointment:
+    name: "reTerminal – Next Appointment (raw)"
+    max: 255
+
+  reterminal_next_7d_calendar:
+    name: "reTerminal – Next 7d Calendar"
+    max: 255
+
+  reterminal_allday_calendar:
+    name: "reTerminal – All-day Calendar"
+    max: 255
+
+# ---------- Template sensors (what the reTerminal subscribes to) ----------
+template:
+  - sensor:
+      - name: "reTerminal – Next Appointment"
+        unique_id: reterminal_next_appointment
+        state: "{{ states('input_text.reterminal_next_appointment') }}"
+
+      - name: "reTerminal – Next 7d Calendar"
+        unique_id: reterminal_next_7d_calendar
+        icon: mdi:calendar
+        state: "{{ states('input_text.reterminal_next_7d_calendar') }}"
+
+      - name: "reTerminal – All-day Calendar"
+        unique_id: reterminal_allday_calendar
+        icon: mdi:calendar-range
+        state: "{{ states('input_text.reterminal_allday_calendar') }}"
+
+# ---------- Automation: build all three ----------
+automation:
+  - id: reterminal_build_next_7d_calendar
+    alias: "reTerminal – build calendar feed"
+    mode: single
+    trigger:
+      - platform: time_pattern
+        minutes: "/15"
+      - platform: homeassistant
+        event: start
+
+    condition:
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: calendar.bastian_kolb
+            state: unavailable
+    action:
+      - service: calendar.get_events
+        target:
+          entity_id: calendar.bastian_kolb
+        data:
+          start_date_time: "{{ now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat() }}"
+          end_date_time: "{{ (now() + timedelta(days=7)).replace(microsecond=0).isoformat() }}"
+        response_variable: cal
+
+      - variables:
+          cal_id: "calendar.bastian_kolb"
+          max_timed: 7
+          max_allday: 4
+
+          evs: >-
+            {% if cal is defined and cal.get(cal_id) is not none and cal[cal_id].get('events') is not none %}
+              {{ cal[cal_id]['events'] }}
+            {% else %}
+              {{ [] }}
+            {% endif %}
+
+          # Split into timed (not ended yet) and all-day (last day >= today)
+          split: >-
+            {% set today = now().date() %}
+            {% set ns = namespace(timed=[], allday=[]) %}
+            {% for e in evs %}
+              {% set s = e.start | string %}
+              {% set title = (e.summary | default('Event') | string | replace('\n', ' '))[:40] %}
+              {% if s | length == 10 %}
+                {% set sd = strptime(s, '%Y-%m-%d').date() %}
+                {% set ed = (strptime(e.end | string, '%Y-%m-%d') - timedelta(days=1)).date() %}
+                {% if ed >= today %}
+                  {% set ns.allday = ns.allday + [{'sd': sd.isoformat(), 'ed': ed.isoformat(), 't': title}] %}
+                {% endif %}
+              {% elif as_datetime(e.end | string) > now() %}
+                {% set ns.timed = ns.timed + [{'dt': as_local(as_datetime(s)).isoformat(), 't': title}] %}
+              {% endif %}
+            {% endfor %}
+            {{ {'timed': ns.timed | sort(attribute='dt'), 'allday': ns.allday | sort(attribute='sd')} }}
+
+          next_line: >-
+            {% set t = split.timed %}
+            {% if t | count == 0 %}
+              No upcoming events
+            {% else %}
+              {{ (as_datetime(t[0].dt).strftime('%a %d.%m %H:%M') ~ '  ' ~ t[0].t)[:255] }}
+            {% endif %}
+
+          list_lines: >-
+            {% set today = now().date() %}
+            {% set ls = namespace(s='', last='') %}
+            {% for e in split.timed[1:max_timed + 1] %}
+              {% set dt = as_datetime(e.dt) %}
+              {% set key = dt.strftime('%Y-%m-%d') %}
+              {% set label = 'Today' if dt.date() == today else dt.strftime('%a %d.%m') %}
+              {% set left = ((label ~ ' ' * 14)[:14]) if key != ls.last else ' ' * 14 %}
+              {% set ls.last = key %}
+              {% set ls.s = ls.s ~ left ~ '  ' ~ dt.strftime('%H:%M') ~ '  ' ~ e.t ~ '\n' %}
+            {% endfor %}
+            {{ (ls.s.rstrip() if ls.s else 'No further events in next 7 days.')[:255] }}
+
+          allday_lines: >-
+            {% set al = namespace(s='') %}
+            {% for e in split.allday[:max_allday] %}
+              {% set sd = strptime(e.sd, '%Y-%m-%d') %}
+              {% set ed = strptime(e.ed, '%Y-%m-%d') %}
+              {% set al.s = al.s ~ sd.strftime('%a') ~ '|' ~ sd.strftime('%d.%m') ~ '|' ~ (ed.strftime('%d.%m') if e.ed != e.sd else '') ~ '|' ~ e.t ~ '\n' %}
+            {% endfor %}
+            {{ al.s.rstrip()[:255] if al.s else 'none' }}
+
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.reterminal_next_appointment
+        data:
+          value: "{{ next_line }}"
+
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.reterminal_next_7d_calendar
+        data:
+          value: "{{ list_lines }}"
+
+      - service: input_text.set_value
+        target:
+          entity_id: input_text.reterminal_allday_calendar
+        data:
+          value: "{{ allday_lines }}"

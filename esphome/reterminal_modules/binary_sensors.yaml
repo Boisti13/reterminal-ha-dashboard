@@ -1,0 +1,66 @@
+# ---------------------------------------------------
+# BUTTONS
+# Waking: handled in page_wake.h (which key woke the device).
+# While awake: KEY0 = Climate, KEY1 = Homelab, KEY2 = Overview (then sleep).
+# Each press restarts show_selected_page (resets the 30s before parking on the overview).
+# ---------------------------------------------------
+
+# KEY0 -> Climate
+- platform: gpio
+  id: key0_climate
+  pin:
+    number: GPIO5
+    mode: INPUT_PULLUP
+    inverted: true
+    allow_other_uses: true
+  on_press:
+    then:
+      - globals.set:
+          id: selected_page
+          value: '1'
+      - if:
+          condition:
+            lambda: 'return id(ui_ready);'
+          then:
+            - deep_sleep.prevent: deep_sleep_ctrl
+            - script.execute: show_selected_page
+
+# KEY1 -> Homelab
+- platform: gpio
+  id: key1_homelab
+  pin:
+    number: GPIO4
+    mode: INPUT_PULLUP
+    inverted: true
+    allow_other_uses: true
+  on_press:
+    then:
+      - globals.set:
+          id: selected_page
+          value: '2'
+      - if:
+          condition:
+            lambda: 'return id(ui_ready);'
+          then:
+            - deep_sleep.prevent: deep_sleep_ctrl
+            - script.execute: show_selected_page
+
+# KEY2 -> Overview (then sleep)
+- platform: gpio
+  id: key2_overview
+  pin:
+    number: GPIO3
+    mode: INPUT_PULLUP
+    inverted: true
+    allow_other_uses: true
+  on_press:
+    then:
+      - globals.set:
+          id: selected_page
+          value: '0'
+      - if:
+          condition:
+            lambda: 'return id(ui_ready);'
+          then:
+            - deep_sleep.prevent: deep_sleep_ctrl
+            - script.execute: show_selected_page

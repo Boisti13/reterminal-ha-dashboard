@@ -1,0 +1,160 @@
+id: page_climate
+lambda: |-
+  // Room tiles (4 x 2) with large temperature, humidity (+ CO2 for the bedroom)
+  // and status icons: flame = radiator heating, window = window/door open,
+  // "!" = value outside the room's range (reason printed in the tile).
+  // Bottom row: outdoor + the reTerminal's own sensor.
+
+  #define ICON_heat        "\U000F0238"  // fire
+  #define ICON_window_open "\U000F11DC"  // window-open-variant
+  #define ICON_warn        "\U000F1238"  // exclamation-thick
+  #define ICON_arrow_up     "\U000F0143"
+  #define ICON_arrow_down   "\U000F0140"
+  #define ICON_arrow_stable "\U000F0142"
+
+  const int WIDTH  = 800;
+  const int MARGIN = 20;
+
+  it.fill(COLOR_OFF);
+
+  // Shared header (date, battery, divider) from ui_header.h
+  draw_header(it, id(font_header), id(font_small), id(battery_icons_small), id(ha_time).now(),
+              id(battery_level).has_state() ? id(battery_level).state : NAN, "No date");
+
+  // =====================================================
+  // ROOM TILES
+  // =====================================================
+  struct Room {
+    const char *name;
+    float temp, hum, co2;
+    text_sensor::TextSensor *heat;      // radiator hvac_action, nullptr = none
+    binary_sensor::BinarySensor *win;   // window contact, nullptr = none
+    float tmin, tmax;                   // NAN = no temperature check
+    bool check_hum;                     // humidity 35-65 %
+  };
+
+  const Room rooms[] = {
+    {"Living Room", id(temp_living).state,      id(hum_living).state,   NAN,                id(heat_living),   id(win_living),   18, 26, true},
+    {"Bedroom",     id(temp_bedroom).state,     id(hum_bedroom).state,  id(co2_bedroom).state, id(heat_bedroom), id(win_bedroom), 18, 26, true},
+    {"Arthur",      id(temp_child).state,       id(hum_child).state,    NAN,                id(heat_arthur),   id(win_arthur),   18, 26, true},
+    {"Kitchen",     id(temp_kitchen).state,     id(hum_kitchen).state,  NAN,                id(heat_kitchen),  id(win_kitchen),  18, 26, true},
+    {"Bathroom",    id(temp_bathroom).state,    id(hum_bathroom).state, NAN,                id(heat_bathroom), nullptr,          18, 26, true},
+    {"Hallway",     id(temp_hallway).state,     id(hum_hallway).state,  NAN,                nullptr,           nullptr,          18, 26, true},
+    {"Cheddar",     id(temp_cheddar).state,     id(hum_cheddar).state,  NAN,                nullptr,           nullptr,          25, 50, false},  // terrarium
+    {"Coat Closet", id(temp_coat_closet).state, NAN,                    NAN,                nullptr,           nullptr,          NAN, 35, false},  // only an upper limit
+  };
+
+  const int cols = 4;
+  const int gap  = 10;
+  const int x0   = MARGIN;
+  const int y0   = 60;
+  const int tw   = (WIDTH - 2 * MARGIN - (cols - 1) * gap) / cols;  // 182
+  const int th   = 165;
+
+  int i = 0;
+  for (const auto &r : rooms) {
+    const int x = x0 + (i % cols) * (tw + gap);
+    const int y = y0 + (i / cols) * (th + gap);
+    const int cx = x + tw / 2;
+    i++;
+
+    // Tile frame + name
+    it.rectangle(x, y, tw, th, COLOR_ON);
+    it.print(x + 10, y + 8, id(font_medium), COLOR_ON, r.name);
+
+    // Out-of-range checks -> reason text
+    std::string warn;
+    auto add_warn = [&](const char *w) {
+      if (!warn.empty()) warn += ", ";
+      warn += w;
+    };
+    if (!std::isnan(r.temp) && !std::isnan(r.tmin) && r.temp < r.tmin) add_warn("Too cold");
+    if (!std::isnan(r.temp) && !std::isnan(r.tmax) && r.temp > r.tmax) add_warn("Too warm");
+    if (r.check_hum && !std::isnan(r.hum) && r.hum > 65) add_warn("Humidity high");
+    if (r.check_hum && !std::isnan(r.hum) && r.hum < 35) add_warn("Humidity low");
+    if (!std::isnan(r.co2) && r.co2 > 1200) add_warn("CO2 high");
+
+    // Status icons, right to left: ! / window / flame
+    int ix = x + tw - 8;
+    if (!warn.empty()) {
+      ix -= 22;
+      it.print(ix, y + 7, id(room_icons), COLOR_ON, ICON_warn);
+    }
+    if (r.win != nullptr && r.win->has_state() && r.win->state) {
+      ix -= 22;
+      it.print(ix, y + 7, id(room_icons), COLOR_ON, ICON_window_open);
+    }
+    if (r.heat != nullptr && r.heat->has_state() && r.heat->state == "heating") {
+      ix -= 22;
+      it.print(ix, y + 7, id(room_icons), COLOR_ON, ICON_heat);
+    }
+
+    // Large temperature
+    if (!std::isnan(r.temp)) {
+      it.printf(cx, y + 48, id(font_temp), COLOR_ON, TextAlign::TOP_CENTER, "%.1f\xC2\xB0", r.temp);
+    } else {
+      it.print(cx, y + 48, id(font_temp), COLOR_ON, TextAlign::TOP_CENTER, "--");
+    }
+
+    // Humidity (+ CO2)
+    char buf[40];
+    buf[0] = '\0';
+    if (!std::isnan(r.hum) && !std::isnan(r.co2)) {
+      snprintf(buf, sizeof(buf), "%.0f%% RH  \xC2\xB7  CO2 %.0f", r.hum, r.co2);
+    } else if (!std::isnan(r.hum)) {
+      snprintf(buf, sizeof(buf), "%.0f%% RH", r.hum);
+    } else if (!std::isnan(r.co2)) {
+      snprintf(buf, sizeof(buf), "CO2 %.0f", r.co2);
+    }
+    if (buf[0] != '\0') it.print(cx, y + 105, id(font_medium_s), COLOR_ON, TextAlign::TOP_CENTER, buf);
+
+    // Warning reason
+    if (!warn.empty()) it.print(cx, y + 130, id(font_small), COLOR_ON, TextAlign::TOP_CENTER, warn.c_str());
+  }
+
+  // =====================================================
+  // BOTTOM ROW: OUTDOOR + reTerminal
+  // =====================================================
+  int by = y0 + 2 * th + gap + 14;
+  it.line(MARGIN, by, WIDTH - MARGIN, by, COLOR_ON);
+  by += 12;
+
+  {
+    // Outdoor: temp, humidity, pressure + trend arrow
+    char buf[64];
+    float t = id(ha_outdoor_temp).state;
+    float h = id(ha_outdoor_humidity).state;
+    float p = id(indoor_atmospheric_pressure).state;
+    snprintf(buf, sizeof(buf), "%s  \xC2\xB7  %s  \xC2\xB7  %s",
+             std::isnan(t) ? "--" : str_sprintf("%.1f\xC2\xB0", t).c_str(),
+             std::isnan(h) ? "--" : str_sprintf("%.0f%% RH", h).c_str(),
+             std::isnan(p) ? "--" : str_sprintf("%.0f hPa", p).c_str());
+
+    it.print(MARGIN, by, id(font_medium), COLOR_ON, "Outdoor");
+    it.print(MARGIN + 90, by, id(font_medium), COLOR_ON, buf);
+
+    if (!std::isnan(p)) {
+      const std::string &trend = id(indoor_pressure_trend).state;
+      const char *arrow = ICON_arrow_stable;
+      if (trend == "rising" || trend == "up") arrow = ICON_arrow_up;
+      else if (trend == "falling" || trend == "down") arrow = ICON_arrow_down;
+      int bx, bby, w, hh;
+      it.get_text_bounds(0, 0, buf, id(font_medium), TextAlign::TOP_LEFT, &bx, &bby, &w, &hh);
+      it.print(MARGIN + 90 + w + 6, by - 1, id(trend_icons), COLOR_ON, arrow);
+    }
+  }
+
+  {
+    // reTerminal: own SHT4x + battery voltage
+    char buf[64];
+    float t = id(sht4x_temperature).state;
+    float h = id(sht4x_humidity).state;
+    float v = id(battery_voltage).state;
+    snprintf(buf, sizeof(buf), "%s  \xC2\xB7  %s  \xC2\xB7  %s",
+             std::isnan(t) ? "--" : str_sprintf("%.1f\xC2\xB0", t).c_str(),
+             std::isnan(h) ? "--" : str_sprintf("%.0f%%", h).c_str(),
+             std::isnan(v) ? "--" : str_sprintf("%.2f V", v).c_str());
+
+    it.print(470, by, id(font_medium), COLOR_ON, "reTerminal");
+    it.print(570, by, id(font_medium), COLOR_ON, buf);
+  }

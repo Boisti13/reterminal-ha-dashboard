@@ -1,0 +1,181 @@
+# ---------------------------------------------------
+# HOMELAB (Proxmox Home / RPTU + Pi-hole) for page_homelab
+# Merged in via packages: in reterminal.yaml
+# ---------------------------------------------------
+
+sensor:
+  # ---- Proxmox Home (pve 192.168.178.79) ----
+  - platform: homeassistant
+    id: pve_home_cpu
+    entity_id: sensor.node_pve_cpu_used
+  - platform: homeassistant
+    id: pve_home_mem
+    entity_id: sensor.node_pve_memory_used_percentage
+  - platform: homeassistant
+    id: pve_home_disk
+    entity_id: sensor.node_pve_disk_used_percentage
+  - platform: homeassistant
+    id: pve_home_vms
+    entity_id: sensor.node_pve_virtual_machines_running
+  - platform: homeassistant
+    id: pve_home_cts
+    entity_id: sensor.node_pve_containers_running
+  - platform: homeassistant
+    id: pve_home_updates
+    entity_id: sensor.node_pve_total_updates
+  - platform: homeassistant
+    id: pve_home_failed
+    entity_id: sensor.living_room_node_pve_failed_tasks
+
+  # ---- Proxmox RPTU (pve 192.168.100.103) ----
+  - platform: homeassistant
+    id: pve_rptu_cpu
+    entity_id: sensor.node_pve_cpu_used_2
+  - platform: homeassistant
+    id: pve_rptu_mem
+    entity_id: sensor.node_pve_memory_used_percentage_2
+  - platform: homeassistant
+    id: pve_rptu_disk
+    entity_id: sensor.node_pve_disk_used_percentage_2
+  - platform: homeassistant
+    id: pve_rptu_vms
+    entity_id: sensor.node_pve_virtual_machines_running_2
+  - platform: homeassistant
+    id: pve_rptu_cts
+    entity_id: sensor.node_pve_containers_running_2
+  - platform: homeassistant
+    id: pve_rptu_updates
+    entity_id: sensor.node_pve_total_updates_2
+  - platform: homeassistant
+    id: pve_rptu_failed
+    entity_id: sensor.rptu_node_pve_failed_tasks
+
+  # ---- Pi-hole ----
+  - platform: homeassistant
+    id: pihole_queries
+    entity_id: sensor.pi_hole_dns_queries_today_2
+  - platform: homeassistant
+    id: pihole_blocked
+    entity_id: sensor.pi_hole_ads_blocked_today_2
+  - platform: homeassistant
+    id: pihole_blocked_pct
+    entity_id: sensor.pi_hole_ads_percentage_blocked_today_2
+  - platform: homeassistant
+    id: pihole_clients
+    entity_id: sensor.pi_hole_dns_unique_clients_2
+  - platform: homeassistant
+    id: pihole_blocklist
+    entity_id: sensor.pi_hole_domains_blocked_2
+
+text_sensor:
+  - platform: homeassistant
+    id: pve_home_boot
+    entity_id: sensor.node_pve_last_boot
+  - platform: homeassistant
+    id: pve_rptu_boot
+    entity_id: sensor.node_pve_last_boot_2
+
+binary_sensor:
+  # ---- Node online ----
+  - platform: homeassistant
+    id: pve_home_online
+    entity_id: binary_sensor.node_pve_status
+  - platform: homeassistant
+    id: pve_rptu_online
+    entity_id: binary_sensor.node_pve_status_2
+
+  # ---- Guests Home ----
+  - platform: homeassistant
+    id: g_home_100
+    entity_id: binary_sensor.qemu_haos16_1_100_status
+  - platform: homeassistant
+    id: g_home_101
+    entity_id: binary_sensor.lxc_jellyfin_101_status
+  - platform: homeassistant
+    id: g_home_102
+    entity_id: binary_sensor.lxc_audiobookshelf_102_status
+  - platform: homeassistant
+    id: g_home_103
+    entity_id: binary_sensor.lxc_pihole_103_status
+  - platform: homeassistant
+    id: g_home_105
+    entity_id: binary_sensor.lxc_zerotier_one_105_status
+  - platform: homeassistant
+    id: g_home_106
+    entity_id: binary_sensor.lxc_smb_share_106_status
+  - platform: homeassistant
+    id: g_home_107
+    entity_id: binary_sensor.lxc_sprout_track_107_status
+  - platform: homeassistant
+    id: g_home_108
+    entity_id: binary_sensor.lxc_sprout_track_2_108_status
+  - platform: homeassistant
+    id: g_home_104
+    entity_id: binary_sensor.lxc_debian_104_status
+  - platform: homeassistant
+    id: g_home_109
+    entity_id: binary_sensor.lxc_isponsorblocktv_109_status
+  - platform: homeassistant
+    id: g_home_111
+    entity_id: binary_sensor.lxc_paperless_ngx_111_status
+  - platform: homeassistant
+    id: g_home_112
+    entity_id: binary_sensor.lxc_crosspoint_sync_112_status
+  - platform: homeassistant
+    id: g_home_113
+    entity_id: binary_sensor.lxc_vaultwarden_113_status
+  - platform: homeassistant
+    id: g_home_115
+    entity_id: binary_sensor.lxc_calibre_web_automated_115_status
+
+  # ---- Guests RPTU ----
+  - platform: homeassistant
+    id: g_rptu_100
+    entity_id: binary_sensor.lxc_zerotier_one_100_status
+  - platform: homeassistant
+    id: g_rptu_101
+    entity_id: binary_sensor.lxc_jellyfin_101_status_2
+  - platform: homeassistant
+    id: g_rptu_102
+    entity_id: binary_sensor.lxc_audiobookshelf_102_status_2
+  - platform: homeassistant
+    id: g_rptu_103
+    entity_id: binary_sensor.lxc_smb_share_103_status
+  - platform: homeassistant
+    id: g_rptu_104
+    entity_id: binary_sensor.lxc_navidrome_104_status
+  - platform: homeassistant
+    id: g_rptu_105
+    entity_id: binary_sensor.lxc_zerotier_controller_105_status
+  - platform: homeassistant
+    id: g_rptu_106
+    entity_id: binary_sensor.lxc_proxmox_backup_server_106_status
+  - platform: homeassistant
+    id: g_rptu_107
+    entity_id: binary_sensor.lxc_bambuddy_107_status
+  - platform: homeassistant
+    id: g_rptu_108
+    entity_id: binary_sensor.lxc_snapotter_108_status
+  - platform: homeassistant
+    id: g_rptu_109
+    entity_id: binary_sensor.lxc_nginxproxymanager_109_status
+  - platform: homeassistant
+    id: g_rptu_110
+    entity_id: binary_sensor.lxc_mumble_110_status
+  - platform: homeassistant
+    id: g_rptu_111
+    entity_id: binary_sensor.lxc_pto_tracker_111_status
+  - platform: homeassistant
+    id: g_rptu_112
+    entity_id: binary_sensor.lxc_hoerbuch_112_status
+  - platform: homeassistant
+    id: g_rptu_113
+    entity_id: binary_sensor.lxc_project_manager_113_status
+
+  # ---- Pi-hole ----
+  - platform: homeassistant
+    id: pihole_online
+    entity_id: binary_sensor.pi_hole_status_2
+  - platform: homeassistant
+    id: pihole_blocking
+    entity_id: switch.pi_hole_2

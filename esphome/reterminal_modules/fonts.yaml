@@ -1,0 +1,199 @@
+##########################
+#  Fonts
+##########################
+
+- file: "fonts/Ubuntu-Medium.ttf"
+  id: font_header
+  size: 28
+  glyphs:
+    # ASCII
+    - " !\"#$%&'()*+,-./0123456789:;<=>?°·"
+    - "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+    - "`abcdefghijklmnopqrstuvwxyz{|}~"
+    # German umlauts & sharp S
+    - "ÄÖÜäöüß"
+
+- file: "fonts/Ubuntu-Medium.ttf"
+  id: font_big
+  size: 24
+  glyphs:
+    # ASCII
+    - " !\"#$%&'()*+,-./0123456789:;<=>?°·"
+    - "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+    - "`abcdefghijklmnopqrstuvwxyz{|}~"
+    # German umlauts & sharp S
+    - "ÄÖÜäöüß"
+
+- file: "fonts/Ubuntu-Medium.ttf"
+  id: font_medium
+  size: 16
+  glyphs:
+    # ASCII
+    - " !\"#$%&'()*+,-./0123456789:;<=>?°·"
+    - "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+    - "`abcdefghijklmnopqrstuvwxyz{|}~"
+    # German umlauts & sharp S
+    - "ÄÖÜäöüß"
+
+- file: "fonts/Ubuntu-Medium.ttf"
+  id: font_medium_s
+  size: 14
+  glyphs:
+    # ASCII
+    - " !\"#$%&'()*+,-./0123456789:;<=>?°·"
+    - "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+    - "`abcdefghijklmnopqrstuvwxyz{|}~"
+    # German umlauts & sharp S
+    - "ÄÖÜäöüß"
+
+- file: "fonts/Ubuntu-Medium.ttf"
+  id: font_small
+  size: 13
+  glyphs:
+    # ASCII
+    - " !\"#$%&'()*+,-./0123456789:;<=>?°·"
+    - "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+    - "`abcdefghijklmnopqrstuvwxyz{|}~"
+    # German umlauts & sharp S
+    - "ÄÖÜäöüß"
+
+- file: "fonts/Ubuntu-Medium.ttf"
+  id: font_xs
+  size: 9
+  glyphs:
+    # ASCII
+    - " !\"#$%&'()*+,-./0123456789:;<=>?°·"
+    - "@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_"
+    - "`abcdefghijklmnopqrstuvwxyz{|}~"
+    # German umlauts & sharp S
+    - "ÄÖÜäöüß"
+
+- file: "fonts/MaterialDesignIconsDesktop.ttf"
+  id: min_max_icons
+  size: 14
+  glyphs: [
+    "\U000F0143", # arrow_up
+    "\U000F0140", # arrow_down
+    "\U000F0142", # arrow_stable
+    "\U000F0E03", # temp_max
+    "\U000F0E02", # temp_min
+  ]
+
+- file: "fonts/MaterialDesignIconsDesktop.ttf"
+  id: trend_icons
+  size: 20
+  glyphs: [
+    "\U000F0143", # arrow_up
+    "\U000F0140", # arrow_down
+    "\U000F0142", # arrow_stable
+  ]
+
+- file: "fonts/MaterialDesignIconsDesktop.ttf"
+  id: mdi_icons
+  size: 38
+  glyphs: [
+    "\U000F0531", # tree
+    "\U000F02DC", # house
+  ]
+
+- file: "fonts/MaterialDesignIconsDesktop.ttf"
+  id: check_icons
+  size: 14
+  glyphs: [
+    "\U000F1238", # exclamation-thick
+    "\U000F0E1E", # check-bold
+  ]
+
+- file: "fonts/MaterialDesignIconsDesktop.ttf"
+  id: weather_icons_large
+  size: 60
+  glyphs: [
+    "\U000F0599", # weather-sunny
+    "\U000F0594", # weather-night
+    "\U000F0595", # weather-partly-cloudy
+    "\U000F0F31", # weather-night-partly-cloudy
+    "\U000F0590", # weather-cloudy
+    "\U000F0591", # weather-fog
+    "\U000F0597", # weather-rainy
+    "\U000F0598", # weather-snowy
+    "\U000F067F", # weather-snowy-rainy
+    "\U000F0596", # weather-pouring
+    "\U000F067E", # weather-lightning-rainy
+    "\U000F0593", # weather-lightning
+    "\U000F059D", # weather-windy
+    "\U000F059E"  # weather-windy-variant
+
+  ]
+
+- file: "fonts/MaterialDesignIconsDesktop.ttf"
+  id: weather_icons_small
+  size: 35
+  glyphs: [
+    "\U000F0599", # weather-sunny
+    "\U000F0594", # weather-night
+    "\U000F0595", # weather-partly-cloudy
+    "\U000F0F31", # weather-night-partly-cloudy
+    "\U000F0590", # weather-cloudy
+    "\U000F0591", # weather-fog
+    "\U000F0597", # weather-rainy
+    "\U000F0598", # weather-snowy
+    "\U000F067F", # weather-snowy-rainy
+    "\U000F0596", # weather-pouring
+    "\U000F067E", # weather-lightning-rainy
+    "\U000F0593", # weather-lightning
+    "\U000F059D", # weather-windy
+    "\U000F059E"  # weather-windy-variant
+  ]
+
+- file: "fonts/MaterialDesignIconsDesktop.ttf"
+  id: battery_icons_small
+  size: 20
+  glyphs: [
+    "\U000F0079", # battery
+    "\U000F0082", # battery-90
+    "\U000F0081", # battery-80
+    "\U000F0080", # battery-70
+    "\U000F007F", # battery-60
+    "\U000F007E", # battery-50
+    "\U000F007D", # battery-40
+    "\U000F007C", # battery-30
+    "\U000F007B", # battery-20
+    "\U000F007A", # battery-10
+    "\U000F0083", # battery-alert
+  ]
+
+- file: "fonts/MaterialDesignIconsDesktop.ttf"
+  id: sun_icons
+  size: 18
+  glyphs: [
+    "\U000F059C", # weather-sunset-up (sunrise)
+    "\U000F059B", # weather-sunset-down (sunset)
+  ]
+
+- file: "fonts/MaterialDesignIconsDesktop.ttf"
+  id: car_icons
+  size: 20
+  glyphs: [
+    "\U000F010B", # car
+    "\U000F0298", # gas-station
+    "\U000F08F0", # map-marker-distance
+    "\U000F033E", # lock
+    "\U000F0FC6", # lock-open-variant
+  ]
+
+# Climate page: large room temperatures
+- file: "fonts/Ubuntu-Medium.ttf"
+  id: font_temp
+  size: 36
+  glyphs:
+    - " -.0123456789°"
+
+# Climate page: room status icons
+- file: "fonts/MaterialDesignIconsDesktop.ttf"
+  id: room_icons
+  size: 18
+  glyphs: [
+    "\U000F0238", # fire (radiator heating)
+    "\U000F11DC", # window-open-variant
+    "\U000F1238", # exclamation-thick (out of range)
+  ]

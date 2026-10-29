@@ -1,0 +1,326 @@
+###############################################################################
+# reTerminal – Weather helpers (HA package)
+#  - 3-day forecast sensors for ESPHome overview page
+###############################################################################
+
+template:
+  # ===========================
+  # DAILY: next 3 days
+  # ===========================
+  - trigger:
+      - platform: time_pattern
+        minutes: "/30"
+      - platform: homeassistant
+        event: start
+      - platform: event
+        event_type: event_template_reloaded
+    condition:
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: weather.forecast_home
+            state: unavailable
+    action:
+      - service: weather.get_forecasts
+        data:
+          type: daily
+        target:
+          entity_id: weather.forecast_home
+        response_variable: daily
+
+    sensor:
+      # ---- TODAY min/max temp from daily forecast ----
+      - name: "Reterminal Today Temp Min"
+        unique_id: reterminal_today_temp_min
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 0 %}
+            {% set d = fc[0] %}
+            {# Prefer templow if present, fallback to temperature #}
+            {% if d.templow is not none %}
+              {{ d.templow }}
+            {% else %}
+              {{ d.temperature }}
+            {% endif %}
+          {% else %}
+            unknown
+          {% endif %}
+
+      - name: "Reterminal Today Temp Max"
+        unique_id: reterminal_today_temp_max
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 0 %}
+            {% set d = fc[0] %}
+            {{ d.temperature }}
+          {% else %}
+            unknown
+          {% endif %}
+
+      # --- Combined line per day (optional) ---
+      - name: "reTerminal Forecast Day 1"
+        unique_id: reterminal_forecast_day_1
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 0 %}
+            {% set d = fc[0] %}
+            {% set dt = d.datetime | as_datetime | as_local %}
+            {{ dt.strftime('%a %d') }}: {{ d.templow|round(0) }}° / {{ d.temperature|round(0) }}° {{ d.condition }}
+          {% else %}
+            -
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 2"
+        unique_id: reterminal_forecast_day_2
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 1 %}
+            {% set d = fc[1] %}
+            {% set dt = d.datetime | as_datetime | as_local %}
+            {{ dt.strftime('%a %d') }}: {{ d.templow|round(0) }}° / {{ d.temperature|round(0) }}° {{ d.condition }}
+          {% else %}
+            -
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 3"
+        unique_id: reterminal_forecast_day_3
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 2 %}
+            {% set d = fc[2] %}
+            {% set dt = d.datetime | as_datetime | as_local %}
+            {{ dt.strftime('%a %d') }}: {{ d.templow|round(0) }}° / {{ d.temperature|round(0) }}° {{ d.condition }}
+          {% else %}
+            -
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 4"
+        unique_id: reterminal_forecast_day_4
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 3 %}
+            {% set d = fc[3] %}
+            {% set dt = d.datetime | as_datetime | as_local %}
+            {{ dt.strftime('%a %d') }}: {{ d.templow|round(0) }}° / {{ d.temperature|round(0) }}° {{ d.condition }}
+          {% else %}
+            -
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 5"
+        unique_id: reterminal_forecast_day_5
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 4 %}
+            {% set d = fc[4] %}
+            {% set dt = d.datetime | as_datetime | as_local %}
+            {{ dt.strftime('%a %d') }}: {{ d.templow|round(0) }}° / {{ d.temperature|round(0) }}° {{ d.condition }}
+          {% else %}
+            -
+          {% endif %}
+
+      # ---- Per-day CONDITION (for icons on e-paper) ----
+      - name: "reTerminal Forecast Day 1 Condition"
+        unique_id: reterminal_forecast_day_1_condition
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 0 %}
+            {{ fc[0].condition }}
+          {% else %}
+            unknown
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 2 Condition"
+        unique_id: reterminal_forecast_day_2_condition
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 1 %}
+            {{ fc[1].condition }}
+          {% else %}
+            unknown
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 3 Condition"
+        unique_id: reterminal_forecast_day_3_condition
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 2 %}
+            {{ fc[2].condition }}
+          {% else %}
+            unknown
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 4 Condition"
+        unique_id: reterminal_forecast_day_4_condition
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 3 %}
+            {{ fc[3].condition }}
+          {% else %}
+            unknown
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 5 Condition"
+        unique_id: reterminal_forecast_day_5_condition
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 4 %}
+            {{ fc[4].condition }}
+          {% else %}
+            unknown
+          {% endif %}
+
+      # ---- Per-day LABEL (Mon/Tue/…) ----
+      - name: "reTerminal Forecast Day 1 Label"
+        unique_id: reterminal_forecast_day_1_label
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 0 %}
+            {{ (fc[0].datetime | as_datetime | as_local).strftime('%a') }}
+          {% else %}
+            -
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 2 Label"
+        unique_id: reterminal_forecast_day_2_label
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 1 %}
+            {{ (fc[1].datetime | as_datetime | as_local).strftime('%a') }}
+          {% else %}
+            -
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 3 Label"
+        unique_id: reterminal_forecast_day_3_label
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 2 %}
+            {{ (fc[2].datetime | as_datetime | as_local).strftime('%a') }}
+          {% else %}
+            -
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 4 Label"
+        unique_id: reterminal_forecast_day_4_label
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 3 %}
+            {{ (fc[3].datetime | as_datetime | as_local).strftime('%a') }}
+          {% else %}
+            -
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 5 Label"
+        unique_id: reterminal_forecast_day_5_label
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 4 %}
+            {{ (fc[4].datetime | as_datetime | as_local).strftime('%a') }}
+          {% else %}
+            -
+          {% endif %}
+
+      # ---- Per-day TEMP STRING ("13° / 7°") ----
+      - name: "reTerminal Forecast Day 1 Temps"
+        unique_id: reterminal_forecast_day_1_temps
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 0 %}
+            {% set d = fc[0] %}
+            {{ d.templow|round(0) }}° / {{ d.temperature|round(0) }}°
+          {% else %}
+            -
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 2 Temps"
+        unique_id: reterminal_forecast_day_2_temps
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 1 %}
+            {% set d = fc[1] %}
+            {{ d.templow|round(0) }}° / {{ d.temperature|round(0) }}°
+          {% else %}
+            -
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 3 Temps"
+        unique_id: reterminal_forecast_day_3_temps
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 2 %}
+            {% set d = fc[2] %}
+            {{ d.templow|round(0) }}° / {{ d.temperature|round(0) }}°
+          {% else %}
+            -
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 4 Temps"
+        unique_id: reterminal_forecast_day_4_temps
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 3 %}
+            {% set d = fc[3] %}
+            {{ d.templow|round(0) }}° / {{ d.temperature|round(0) }}°
+          {% else %}
+            -
+          {% endif %}
+
+      - name: "reTerminal Forecast Day 5 Temps"
+        unique_id: reterminal_forecast_day_5_temps
+        state: >
+          {% set fc = (daily['weather.forecast_home'].forecast or []) %}
+          {% if fc | length > 4 %}
+            {% set d = fc[4] %}
+            {{ d.templow|round(0) }}° / {{ d.temperature|round(0) }}°
+          {% else %}
+            -
+          {% endif %}
+
+  # ===========================
+  # HOURLY mirror + 24h/2h text (single trigger)
+  # ===========================
+  - trigger:
+      - platform: time_pattern
+        minutes: /15
+      - platform: homeassistant
+        event: start
+    condition:
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: weather.forecast_home
+            state: unavailable
+    action:
+      - service: weather.get_forecasts
+        data:
+          type: hourly
+        target:
+          entity_id: weather.forecast_home
+        response_variable: hourly
+    sensor:
+      # 1) Mirror sensor with full forecast attribute
+      - name: "reTerminal Weather Hourly"
+        unique_id: reterminal_weather_hourly
+        state: "{{ states('weather.forecast_home') }}"
+        attributes:
+          temperature: "{{ state_attr('weather.forecast_home', 'temperature') }}"
+          dew_point: "{{ state_attr('weather.forecast_home', 'dew_point') }}"
+          temperature_unit: "{{ state_attr('weather.forecast_home', 'temperature_unit') }}"
+          humidity: "{{ state_attr('weather.forecast_home', 'humidity') }}"
+          cloud_coverage: "{{ state_attr('weather.forecast_home', 'cloud_coverage') }}"
+          pressure: "{{ state_attr('weather.forecast_home', 'pressure') }}"
+          pressure_unit: "{{ state_attr('weather.forecast_home', 'pressure_unit') }}"
+          wind_bearing: "{{ state_attr('weather.forecast_home', 'wind_bearing') }}"
+          wind_speed: "{{ state_attr('weather.forecast_home', 'wind_speed') }}"
+          wind_speed_unit: "{{ state_attr('weather.forecast_home', 'wind_speed_unit') }}"
+          visibility_unit: "{{ state_attr('weather.forecast_home', 'visibility_unit') }}"
+          precipitation_unit: "{{ state_attr('weather.forecast_home', 'precipitation_unit') }}"
+          forecast: >
+            {% set fc = hourly['weather.forecast_home']['forecast'] | default([], true) %}
+            {{ fc }}
