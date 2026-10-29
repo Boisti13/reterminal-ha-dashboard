@@ -1,3 +1,7 @@
+substitutions:
+  # Title of the second Proxmox host on the Homelab page
+  homelab_host2_title: "Proxmox RPTU"
+
 globals:
   # 0 = Overview, 1 = Climate, 2 = Homelab
   - id: selected_page
@@ -70,7 +74,7 @@ esphome:
   friendly_name: reTerminal
   project:
     name: boisti13.reterminal-ha-dashboard
-    version: "0.2.0"
+    version: "0.2.1-dev"
   on_boot:
     priority: 600
     then:

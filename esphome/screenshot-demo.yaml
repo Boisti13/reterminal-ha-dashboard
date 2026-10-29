@@ -9,6 +9,10 @@
 # SDL draws COLOR_ON white on black; the screenshot script inverts the PNGs
 # so they look like the e-paper.
 
+substitutions:
+  # The screenshots name the second host generically
+  homelab_host2_title: "Proxmox PVE2"
+
 esphome:
   name: reterminal-demo
   friendly_name: reTerminal Demo

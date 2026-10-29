@@ -168,7 +168,7 @@ lambda: |-
             id(pve_home_updates).state, id(pve_home_failed).state,
             id(pve_home_boot).state, home_guests, sizeof(home_guests) / sizeof(home_guests[0]));
 
-  draw_node(WIDTH / 2 + 10, WIDTH - MARGIN, "Proxmox PVE2", id(pve_rptu_online),
+  draw_node(WIDTH / 2 + 10, WIDTH - MARGIN, "${homelab_host2_title}", id(pve_rptu_online),
             id(pve_rptu_cpu).state, id(pve_rptu_mem).state, id(pve_rptu_disk).state,
             id(pve_rptu_vms).state, id(pve_rptu_cts).state,
             id(pve_rptu_updates).state, id(pve_rptu_failed).state,

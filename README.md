@@ -55,7 +55,7 @@ made-up values (see [Development](#development)).
 |---|---|---|
 | **Overview** | timer, or the right key (KEY2) | Calendar, weather, hourly and daily forecast, car, alarm bar, "Updated HH:MM" |
 | **Climate** | left key (KEY0) | 8 room tiles, outdoor temperature, humidity and pressure trend, the reTerminal's own sensor and battery voltage |
-| **Homelab** | middle key (KEY1) | Proxmox Home and Proxmox PVE2 side by side, Pi-hole statistics |
+| **Homelab** | middle key (KEY1) | Two Proxmox hosts side by side (title of the second one: `homelab_host2_title` in `reterminal.yaml`), Pi-hole statistics |
 
 A short press is enough, also from deep sleep. Climate and Homelab stay up
 for 30 s (each key press restarts that), then the Overview is drawn again so

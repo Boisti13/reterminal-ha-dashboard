@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Changed
+- **Homelab page**: the second host's title is the substitution
+  `homelab_host2_title`. The device shows *Proxmox RPTU* again; only the
+  screenshot demo uses *Proxmox PVE2*.
+
 ## v0.2.0 — 2026-10-29
 
 ### Added
