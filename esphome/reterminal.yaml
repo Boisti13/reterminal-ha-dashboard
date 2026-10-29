@@ -74,7 +74,7 @@ esphome:
   friendly_name: reTerminal
   project:
     name: boisti13.reterminal-ha-dashboard
-    version: "0.2.1-dev"
+    version: "0.2.1"
   on_boot:
     priority: 600
     then:
