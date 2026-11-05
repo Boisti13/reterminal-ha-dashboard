@@ -85,7 +85,9 @@ automation:
           title: "Water leak detected"
           message: "Leak detected at: {{ leaking_devices }}. Please check immediately."
 
-      - service: notify.telegram
+      - service: notify.send_message
+        target:
+          entity_id: notify.telegram_bot_chat  # your Telegram bot chat (notify entity)
         data:
           message: |
             💧 Water leak detected!
@@ -138,7 +140,9 @@ automation:
           title: "Water leak cleared"
           message: "All sensors (dishwasher, washing machine, sink) report no more water."
 
-      - service: notify.telegram
+      - service: notify.send_message
+        target:
+          entity_id: notify.telegram_bot_chat  # your Telegram bot chat (notify entity)
         data:
           message: |
             ✅ Water leak cleared.
