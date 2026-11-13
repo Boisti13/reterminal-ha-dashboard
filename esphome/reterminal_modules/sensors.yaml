@@ -151,4 +151,4 @@
 
 - platform: homeassistant
   id: car_range
-  entity_id: sensor.i30_fuel_driving_range
+  entity_id: sensor.i30_total_driving_range

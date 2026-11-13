@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v0.2.2 — 2026-11-13
+
+### Changed
+- `packages/water_leak.yaml`: Telegram messages go through
+  `notify.send_message` to the Telegram bot's notify entity (set your own
+  `notify.telegram_bot_…`); Home Assistant 2026.11 removed the legacy
+  `notify.telegram` platform.
+- **Car**: the i30's range comes from `sensor.i30_total_driving_range`
+  (the integration's `sensor.i30_fuel_driving_range` is no longer
+  available).
+
 ## v0.2.1 — 2026-10-29
 
 ### Changed
