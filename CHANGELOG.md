@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.2.2 — 2026-11-13
+
 ### Changed
 - `packages/water_leak.yaml`: Telegram messages go through
   `notify.send_message` to the Telegram bot's notify entity (set your own
